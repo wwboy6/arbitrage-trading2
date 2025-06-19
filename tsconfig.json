@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "commonjs", // Use "ESNext" if you prefer ESM
+    "resolveJsonModule": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node", // Ensure Node.js-style resolution
+    "sourceMap": true, // Enable source maps
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

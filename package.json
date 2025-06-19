@@ -1,0 +1,35 @@
+{
+  "name": "arbitrage-trading2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.12.1",
+  "devDependencies": {
+    "@types/node": "^24.0.3",
+    "eslint": "^9.29.0",
+    "eslint-config-prettier": "^10.1.5"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.1",
+    "@typescript-eslint/parser": "^8.34.1",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.5.0",
+    "expiry-map": "^2.0.0",
+    "p-memoize": "^7.1.1",
+    "p-throttle": "^7.0.0",
+    "prettier": "^3.5.3",
+    "undici": "^7.10.0",
+    "viem": "^2.31.3",
+    "zod": "^3.25.67"
+  },
+  "peerDependencies": {
+    "graphql-request": "^5.0.0"
+  }
+}
