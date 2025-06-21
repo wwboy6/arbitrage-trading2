@@ -4,77 +4,77 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-// TODO: this seems hard to use
-// import "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
+import "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
+import {ActionConstants} from '@uniswap/v4-periphery/src/libraries/ActionConstants.sol';
 
-interface IUniversalRouter {
-    struct V3ExactInputParams {
-        bytes path;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-    }
-
-    function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable returns (bytes[] memory);
-}
+import "hardhat/console.sol";
 
 struct SwapParams {
-    int8 swapProviderIndex;
-    bytes[] paths;
+    // TODO:
+    uint8 swapProviderIndex;
+    bytes path;
 }
 
-contract MultiSwapArray is Ownable {
+contract UniversalArbitrage is Ownable {
     // PancakeSwap Universal Router address on BSC
     address public constant PANCAKESWAP_UNIVERSAL_ROUTER = 0xd9C500DfF816a1Da21A48A732d3498Bf09dc9AEB;
     address public constant UNISWAP_UNIVERSAL_ROUTER = 0x1906c1d672b88cD1B9aC7593301cA990F94Eae07;
 
-    bytes1 public constant V3_SWAP_EXACT_IN = 0x00;
+    bytes1 public constant V3_SWAP_EXACT_IN = hex"00";
 
     constructor() Ownable(msg.sender) {}
 
     function attack(
         // TODO: flash loan
-        // address tokenIn,
+        address tokenIn,
         uint256 amountIn,
         SwapParams[] calldata swaps,
         uint256 deadline
-    ) onlyOwner external {
-        require(amountIn > 0, "no amount in provided");
-        require(swaps.length > 0, "no swaps provided");
-        require(block.timestamp <= deadline, "transaction deadline passed");
+    ) onlyOwner external returns (uint256 amountOut) {
+        this.executeMultipleSwaps(tokenIn, amountIn, swaps, deadline);
 
-        uint256 amountOut = this.executeMultipleSwaps(amountIn, swaps, deadline);
-
+        // TODO: get balance
+        amountOut = IERC20(tokenIn).balanceOf(address(this));
+        console.log('balance after swap');
+        console.log(amountOut);
+        
         require(amountOut > amountIn, "not profitible");
 
-        // Extract tokenIn from path (first 20 bytes)
-        address tokenIn = address(bytes20(swaps[0].paths[0][:20]));
         IERC20(tokenIn).transfer(
             msg.sender,
             amountOut
         );
     }
 
+    function getRouterAddress(uint8 swapProviderIndex) public pure returns (address routerAddress) {
+        if (swapProviderIndex == 0) {
+            routerAddress = PANCAKESWAP_UNIVERSAL_ROUTER;
+        } else {
+            routerAddress = UNISWAP_UNIVERSAL_ROUTER;
+        }
+    }
+
     // Execute multiple V3 exact input swaps from an array of SwapParams
     function executeMultipleSwaps(
+        address tokenIn,
         uint256 amountIn,
         SwapParams[] calldata swaps,
         uint256 deadline
-    ) external onlyOwner returns (uint256 amountOut) {
+    ) external onlyOwner {
+        require(amountIn > 0, "no amount in provided");
+        require(swaps.length > 0, "no swaps provided");
+        require(block.timestamp <= deadline, "transaction deadline passed");
+
+        console.log('after verify');
+        console.log(tokenIn);
+        console.log(amountIn);
 
         for (uint256 i = 0; i < swaps.length; i++) {
             SwapParams calldata swap = swaps[i];
 
-            address routerAddress;
-            if (swap.swapProviderIndex == 0) {
-                routerAddress = PANCAKESWAP_UNIVERSAL_ROUTER;
-            } else {
-                routerAddress = UNISWAP_UNIVERSAL_ROUTER;
-            }
+            console.log(swap.swapProviderIndex);
 
-            // Extract tokenIn from path (first 20 bytes)
-            address tokenIn = address(bytes20(swap.paths[0][:20]));
+            address routerAddress = getRouterAddress(swap.swapProviderIndex);
 
             // transfer balance for swap
             if (i == 0) {
@@ -83,46 +83,48 @@ contract MultiSwapArray is Ownable {
                     routerAddress,
                     amountIn
                 );
+            }
+
+            console.log('after transfer');
+
+            // determin recipient
+            address recipient;
+
+            if (i < swaps.length - 1) {
+                // find next trade router
+                recipient = getRouterAddress(swaps[i+1].swapProviderIndex);
+                console.log('recipient is next router');
             } else {
-                IERC20(tokenIn).transfer(
-                    routerAddress,
-                    IERC20(tokenIn).balanceOf(address(this))
-                );
+                recipient = address(this);
+                console.log('recipient is self');
             }
+            
+            bytes[] memory inputs = new bytes[](1);
 
-            bytes memory commands = new bytes(swap.paths.length);
-            bytes[] memory inputs = new bytes[](swap.paths.length);
+            inputs[0] = abi.encode(
+                recipient,
+                ActionConstants.CONTRACT_BALANCE,
+                0,
+                swap.path,
+                false
+            );
 
-            for (uint8 j = 0; j < swap.paths.length; j++) {
-                // Set command for V3 exact input swap
-                commands[j] = V3_SWAP_EXACT_IN;
+            bytes memory commands = new bytes(1);
+            // Set command for V3 exact input swap
+            commands[0] = V3_SWAP_EXACT_IN;
+            
+            // bytes memory commands = hex"00"; // V3_SWAP_EXACT_IN command
 
-                // Construct input for Universal Router
-                inputs[j] = abi.encode(
-                    IUniversalRouter.V3ExactInputParams({
-                        path: swap.paths[j],
-                        recipient: address(this),
-                        deadline: deadline,
-                        amountIn: 0, // ActionConstants.CONTRACT_BALANCE
-                        amountOutMinimum: 0 // no minimum amount out
-                    })
-                );
-            }
+            console.log('before router');
 
             // Execute swaps via Universal Router
-            bytes[] memory outputs = IUniversalRouter(routerAddress).execute(commands, inputs, deadline);
+            IUniversalRouter(routerAddress).execute(commands, inputs, deadline);
 
-            // Decode outputs
-            for (uint8 j = 0; j < outputs.length; j++) {
-                // TODO: would this cost many gas? esp for large path
-                amountOut = abi.decode(outputs[j], (uint256));
-                emit SwapExecuted(swap.paths[j], amountIn, amountOut);
-            }
+            console.log('after router');
         }
-        // amountOut would be the final one
     }
 
-    // Withdraw tokens from the contract. This is for safety only
+    // Withdraw tokens from the contract.
     function withdrawTokens(address token, uint256 amount) external onlyOwner {
         IERC20(token).transfer(msg.sender, amount);
     }
@@ -132,4 +134,5 @@ contract MultiSwapArray is Ownable {
 
     // TODO: // Allow contract to receive BNB
     // receive() external payable {}
+    
 }
