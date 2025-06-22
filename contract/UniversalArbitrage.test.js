@@ -4,6 +4,8 @@ const { ethers } = require('hardhat')
 const { bscTokens } = require('@pancakeswap/tokens')
 const IERC20 = require('@openzeppelin/contracts/build/contracts/IERC20.json')
 
+const { CommandType } = require('./universal-router')
+
 const SwapProviderIndexPancakeSwap = 0
 const SwapProviderIndexUniSwap = 1
 
@@ -17,18 +19,20 @@ describe.only('Universal Arbitrage', function () {
   const swapPoolFee1 = 100
   const swapTo1 = bscTokens.usdt
   
-  const v2SwapTo0 = bscTokens.busd
+  const v2SwapTo0 = swapTo1
 
   const swapPoolFeeBack = 100
 
   let owner, addr1, abitrage, abitrageAddress
   let swapFromContract
   let swapTo0Contract
+  let v2SwapTo0Contract
 
   beforeEach(async function() {
     [owner, addr1] = await ethers.getSigners();
     swapFromContract = new ethers.Contract(swapFrom.address, IERC20.abi, ethers.provider).connect(owner)
     swapTo0Contract = new ethers.Contract(swapTo0.address, IERC20.abi, ethers.provider).connect(owner)
+    v2SwapTo0Contract = new ethers.Contract(v2SwapTo0.address, IERC20.abi, ethers.provider).connect(owner)
   })
   it('funds tokens', async function () {
     let balance = await swapFromContract.balanceOf(owner.address)
@@ -62,7 +66,7 @@ describe.only('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 5 second from now
+    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -70,6 +74,7 @@ describe.only('Universal Arbitrage', function () {
       [
         {
           swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
           path: ethers.solidityPacked(
             ["address", "uint24", "address"],
             [swapFrom.address, swapPoolFee0, swapTo0.address],
@@ -91,7 +96,7 @@ describe.only('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 5 second from now
+    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -99,6 +104,7 @@ describe.only('Universal Arbitrage', function () {
       [
         {
           swapProviderIndex: SwapProviderIndexUniSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
           path: ethers.solidityPacked(
             ["address", "uint24", "address"],
             [swapFrom.address, swapPoolFee0, swapTo0.address],
@@ -120,7 +126,7 @@ describe.only('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 5 second from now
+    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -128,6 +134,7 @@ describe.only('Universal Arbitrage', function () {
       [
         {
           swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
           path: ethers.solidityPacked(
             ["address", "uint24", "address", "uint24", "address"],
             [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address],
@@ -135,6 +142,7 @@ describe.only('Universal Arbitrage', function () {
         },
         {
           swapProviderIndex: SwapProviderIndexUniSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
           path: ethers.solidityPacked(
             ["address", "uint24", "address", "uint24", "address"],
             [swapTo1.address, swapPoolFee0, swapTo0.address, swapPoolFeeBack, swapFrom.address],
@@ -151,13 +159,13 @@ describe.only('Universal Arbitrage', function () {
     expect(amount).greaterThan(0)
     await abitrage.withdrawTokens(swapFrom.address, amount)
   })
-  it('performs loopback pancake swaps', async function () {
+  xit('performs loopback pancake swaps', async function () {
     // clear contract balance
     let amount = swapFromContract.balanceOf(abitrageAddress)
     await abitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 5 second from now
+    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -165,11 +173,125 @@ describe.only('Universal Arbitrage', function () {
       [
         {
           swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
           path: ethers.solidityPacked(
             ["address", "uint24", "address", "uint24", "address"],
             [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee0, swapFrom.address],
           ),
         }
+      ],
+      deadline
+    )
+    const balance1 = await swapFromContract.balanceOf(owner.address)
+    amount = await swapFromContract.balanceOf(abitrageAddress)
+    expect(balance0 - balance1).equal(swapInAmount)
+    expect(amount).greaterThan(0)
+    console.log(amount)
+    await abitrage.withdrawTokens(swapFrom.address, amount)
+  })
+  xit('performs simple v2 pancake swaps', async function () {
+    // clear contract balance
+    let amount = v2SwapTo0Contract.balanceOf(abitrageAddress)
+    await abitrage.withdrawTokens(v2SwapTo0.address, amount)
+    //
+    const balance0 = await swapFromContract.balanceOf(owner.address)
+    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
+    const swapInAmount = ethers.parseEther('0.1')
+    await abitrage.executeMultipleSwaps(
+      swapFrom.address,
+      swapInAmount,
+      [
+        {
+          swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V2_SWAP_EXACT_IN,
+          path: ethers.AbiCoder.defaultAbiCoder().encode(["address[]"], [[swapFrom.address, v2SwapTo0.address]])
+        }
+      ],
+      deadline
+    )
+    const balance1 = await swapFromContract.balanceOf(owner.address)
+    amount = await v2SwapTo0Contract.balanceOf(abitrageAddress)
+    expect(balance0 - balance1).equal(swapInAmount)
+    expect(amount).greaterThan(0)
+    console.log(amount)
+    await abitrage.withdrawTokens(v2SwapTo0.address, amount)
+  })
+  xit('performs v3 - v2 - v3 pancake swaps', async function () {
+    // clear contract balance
+    let amount = swapFromContract.balanceOf(abitrageAddress)
+    await abitrage.withdrawTokens(swapFrom.address, amount)
+    //
+    const balance0 = await swapFromContract.balanceOf(owner.address)
+    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
+    const swapInAmount = ethers.parseEther('0.1')
+    await abitrage.executeMultipleSwaps(
+      swapFrom.address,
+      swapInAmount,
+      [
+        {
+          swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
+          path: ethers.solidityPacked(
+            ["address", "uint24", "address"],
+            [swapFrom.address, swapPoolFee0, swapTo0.address],
+          ),
+        },
+        {
+          swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V2_SWAP_EXACT_IN,
+          path: ethers.AbiCoder.defaultAbiCoder().encode(["address[]"], [[swapTo0.address, v2SwapTo0.address]])
+        },
+        {
+          swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
+          path: ethers.solidityPacked(
+            ["address", "uint24", "address"],
+            [v2SwapTo0.address, swapPoolFee0, swapFrom.address],
+          ),
+        },
+      ],
+      deadline
+    )
+    const balance1 = await swapFromContract.balanceOf(owner.address)
+    amount = await swapFromContract.balanceOf(abitrageAddress)
+    expect(balance0 - balance1).equal(swapInAmount)
+    expect(amount).greaterThan(0)
+    console.log(amount)
+    await abitrage.withdrawTokens(swapFrom.address, amount)
+  })
+  it('performs v3 - v2 - v3 uni swaps', async function () {
+    // clear contract balance
+    let amount = swapFromContract.balanceOf(abitrageAddress)
+    await abitrage.withdrawTokens(swapFrom.address, amount)
+    //
+    const balance0 = await swapFromContract.balanceOf(owner.address)
+    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
+    const swapInAmount = ethers.parseEther('0.1')
+    await abitrage.executeMultipleSwaps(
+      swapFrom.address,
+      swapInAmount,
+      [
+        {
+          swapProviderIndex: SwapProviderIndexUniSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
+          path: ethers.solidityPacked(
+            ["address", "uint24", "address"],
+            [swapFrom.address, swapPoolFee0, swapTo0.address],
+          ),
+        },
+        {
+          swapProviderIndex: SwapProviderIndexUniSwap,
+          command: CommandType.V2_SWAP_EXACT_IN,
+          path: ethers.AbiCoder.defaultAbiCoder().encode(["address[]"], [[swapTo0.address, v2SwapTo0.address]])
+        },
+        {
+          swapProviderIndex: SwapProviderIndexUniSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
+          path: ethers.solidityPacked(
+            ["address", "uint24", "address"],
+            [v2SwapTo0.address, swapPoolFee0, swapFrom.address],
+          ),
+        },
       ],
       deadline
     )

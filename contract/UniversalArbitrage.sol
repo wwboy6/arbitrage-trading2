@@ -6,12 +6,14 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import {ActionConstants} from '@uniswap/v4-periphery/src/libraries/ActionConstants.sol';
+import "./helper.sol";
 
 import "hardhat/console.sol";
 
 struct SwapParams {
-    // TODO:
     uint8 swapProviderIndex;
+    // TODO: involve multiple commands
+    bytes1 command;
     bytes path;
 }
 
@@ -98,22 +100,33 @@ contract UniversalArbitrage is Ownable {
                 recipient = address(this);
                 console.log('recipient is self');
             }
-            
-            bytes[] memory inputs = new bytes[](1);
-
-            inputs[0] = abi.encode(
-                recipient,
-                ActionConstants.CONTRACT_BALANCE,
-                0,
-                swap.path,
-                false
-            );
 
             bytes memory commands = new bytes(1);
             // Set command for V3 exact input swap
-            commands[0] = V3_SWAP_EXACT_IN;
+            commands[0] = swap.command;
             
-            // bytes memory commands = hex"00"; // V3_SWAP_EXACT_IN command
+            bytes[] memory inputs = new bytes[](1);
+
+            if (swap.command == Commands.V2_SWAP_EXACT_IN) {
+                console.log("V2_SWAP_EXACT_IN");
+                address[] memory v2Path = abi.decode(swap.path, (address[]));
+                inputs[0] = abi.encode(
+                    recipient,
+                    IERC20(v2Path[0]).balanceOf(routerAddress),
+                    0,
+                    v2Path,
+                    false
+                );
+            } else {
+                console.log("V3");
+                inputs[0] = abi.encode(
+                    recipient,
+                    ActionConstants.CONTRACT_BALANCE,
+                    0,
+                    swap.path,
+                    false
+                );
+            }
 
             console.log('before router');
 
