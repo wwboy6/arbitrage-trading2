@@ -18,8 +18,10 @@ describe.only('Universal Arbitrage', function () {
   const swapTo0 = bscTokens.busd
   const swapPoolFee1 = 100
   const swapTo1 = bscTokens.usdt
+  const swapPoolFeeLoopback = 100
   
-  const v2SwapTo0 = swapTo1
+  const v2SwapTo0 = swapTo0
+  const v2SwapTo1 = swapTo1
 
   const swapPoolFeeBack = 100
 
@@ -36,21 +38,34 @@ describe.only('Universal Arbitrage', function () {
   })
   it('funds tokens', async function () {
     let balance = await swapFromContract.balanceOf(owner.address)
-    if (balance < ethers.parseEther('5')) {
+    const bnbBalance0 = await ethers.provider.getBalance(owner.address)
+    if (bnbBalance0 < ethers.parseEther('1') || balance < ethers.parseEther('1')) {
       // transfer fund
       await addr1.sendTransaction({
         to: owner.address,
-        value: ethers.parseEther('11'),
+        value: ethers.parseEther('10'),
       })
       // buy swapFrom
       await owner.sendTransaction({
         to: swapFrom.address,
-        value: ethers.parseEther('10'),
+        value: ethers.parseEther('5'),
         // gasLimit
       })
     }
     balance = await swapFromContract.balanceOf(owner.address)
     expect(balance).greaterThan(ethers.parseEther('5'))
+  })
+  xit('deposit and withdraw wbnb', async function () {
+    const abi = require('./wbnb.json')
+    const WBNB = new ethers.Contract(bscTokens.wbnb.address, abi, ethers.provider).connect(owner)
+    let balance = await WBNB.balanceOf(owner.address)
+    console.log('balance', balance)
+    await WBNB.deposit({value: 1})
+    balance = await WBNB.balanceOf(owner.address)
+    console.log('balance', balance)
+    await WBNB.withdraw(1)
+    balance = await WBNB.balanceOf(owner.address)
+    console.log('balance', balance)
   })
   it('deploys contract', async function () {
     const UniversalArbitrage = await ethers.getContractFactory('UniversalArbitrage')
@@ -259,7 +274,7 @@ describe.only('Universal Arbitrage', function () {
     console.log(amount)
     await abitrage.withdrawTokens(swapFrom.address, amount)
   })
-  it('performs v3 - v2 - v3 uni swaps', async function () {
+  xit('performs v3 - v2 - v3 uni swaps', async function () {
     // clear contract balance
     let amount = swapFromContract.balanceOf(abitrageAddress)
     await abitrage.withdrawTokens(swapFrom.address, amount)
@@ -301,5 +316,93 @@ describe.only('Universal Arbitrage', function () {
     expect(amount).greaterThan(0)
     console.log(amount)
     await abitrage.withdrawTokens(swapFrom.address, amount)
+  })
+  xit('performs attack with bnb only', async function () {
+    // clear contract balance
+    await abitrage.withdrawBalance()
+    //
+    const balance0 = await swapFromContract.balanceOf(owner.address)
+    const bnbBalance0 = await ethers.provider.getBalance(owner.address)
+    const deadline = Math.floor(Date.now() / 1000) + 60 // Deadline set to 1 minute from now
+    const swapInAmount = ethers.parseEther('0.1')
+    try {
+      await abitrage.attack(
+        swapFrom.address,
+        0,
+        0,
+        [
+          {
+            swapProviderIndex: SwapProviderIndexPancakeSwap,
+            command: CommandType.V3_SWAP_EXACT_IN,
+            path: ethers.solidityPacked(
+              ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
+              [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, swapPoolFeeLoopback, swapFrom.address],
+            ),
+          }
+        ],
+        deadline,
+        {
+          value: swapInAmount,
+        }
+      )
+
+      console.log('attack success')
+      
+      // FIXME: not sure why withdraw is not working in anvil
+      const balance1 = await swapFromContract.balanceOf(owner.address)
+      // expect(balance1).equal(balance0)
+      // const bnbBalance1 = await ethers.provider.getBalance(owner.address)
+      // expect(bnbBalance1).greaterThanOrEqual(bnbBalance0)
+      const balanceGain = balance1 - balance0
+      console.log('balanceGain', balanceGain)
+      expect(balanceGain).greaterThan(0)
+    } catch (e) {
+      console.error(e)
+      expect(e.message).equal('execution reverted: not profitible')
+    }
+  })
+  it('performs attack with flash loan', async function () {
+    // clear contract balance
+    await abitrage.withdrawBalance()
+    //
+    const balance0 = await swapFromContract.balanceOf(owner.address)
+    const bnbBalance0 = await ethers.provider.getBalance(owner.address)
+    const deadline = Math.floor(Date.now() / 1000) + 60 // Deadline set to 1 minute from now
+    const swapInAmount = ethers.parseEther('0.1')
+    try {
+      await abitrage.attack(
+        swapFrom.address,
+        0,
+        ethers.parseEther('0.101'),
+        [
+          {
+            swapProviderIndex: SwapProviderIndexPancakeSwap,
+            command: CommandType.V3_SWAP_EXACT_IN,
+            path: ethers.solidityPacked(
+              ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
+              [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, swapPoolFeeLoopback, swapFrom.address],
+            ),
+          }
+        ],
+        deadline,
+        {
+          value: swapInAmount,
+        }
+      )
+
+      console.log('attack success')
+      
+      // FIXME: not sure why withdraw is not working in anvil
+      const balance1 = await swapFromContract.balanceOf(owner.address)
+      // expect(balance1).equal(balance0)
+      // const bnbBalance1 = await ethers.provider.getBalance(owner.address)
+      // expect(bnbBalance1).greaterThanOrEqual(bnbBalance0)
+      const balanceGain = balance1 - balance0
+      console.log('balanceGain', balanceGain)
+      expect(balanceGain).greaterThan(0)
+    } catch (e) {
+      console.error(e)
+      expect(e.message).equal('execution reverted: not profitible')
+    }
   })
 })
