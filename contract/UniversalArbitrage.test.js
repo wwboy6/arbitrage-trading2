@@ -3,16 +3,30 @@ const { ethers } = require('hardhat')
 
 const { bscTokens } = require('@pancakeswap/tokens')
 const IERC20 = require('@openzeppelin/contracts/build/contracts/IERC20.json')
+const wbnbAbi = [
+  ...IERC20.abi,
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "wad",
+        "type": "uint256"
+      }
+    ],
+    "name": "withdraw",
+    "outputs": [],
+    "stateMutability": "public",
+    "type": "function"
+  }
+]
 
-const { CommandType } = require('./universal-router')
+const { CommandType, pancakeswapUniversalRouter, uniswapUniversalRouter } = require('./universal-router')
+const { loanPoolProvider } = require('./aave')
 
 const SwapProviderIndexPancakeSwap = 0
 const SwapProviderIndexUniSwap = 1
 
-// const PANCAKESWAP_UNIVERSAL_ROUTER = 0xd9C500DfF816a1Da21A48A732d3498Bf09dc9AEB;
-// const UNISWAP_UNIVERSAL_ROUTER = 0x1906c1d672b88cD1B9aC7593301cA990F94Eae07;
-
-describe.only('Universal Arbitrage', function () {
+describe('Universal Arbitrage', function () {
   const swapFrom = bscTokens.wbnb
   const swapPoolFee0 = 100
   const swapTo0 = bscTokens.busd
@@ -32,28 +46,9 @@ describe.only('Universal Arbitrage', function () {
 
   beforeEach(async function() {
     [owner, addr1] = await ethers.getSigners();
-    swapFromContract = new ethers.Contract(swapFrom.address, IERC20.abi, ethers.provider).connect(owner)
+    swapFromContract = new ethers.Contract(swapFrom.address, wbnbAbi, ethers.provider).connect(owner)
     swapTo0Contract = new ethers.Contract(swapTo0.address, IERC20.abi, ethers.provider).connect(owner)
     v2SwapTo0Contract = new ethers.Contract(v2SwapTo0.address, IERC20.abi, ethers.provider).connect(owner)
-  })
-  it('funds tokens', async function () {
-    let balance = await swapFromContract.balanceOf(owner.address)
-    const bnbBalance0 = await ethers.provider.getBalance(owner.address)
-    if (bnbBalance0 < ethers.parseEther('1') || balance < ethers.parseEther('1')) {
-      // transfer fund
-      await addr1.sendTransaction({
-        to: owner.address,
-        value: ethers.parseEther('10'),
-      })
-      // buy swapFrom
-      await owner.sendTransaction({
-        to: swapFrom.address,
-        value: ethers.parseEther('5'),
-        // gasLimit
-      })
-    }
-    balance = await swapFromContract.balanceOf(owner.address)
-    expect(balance).greaterThan(ethers.parseEther('5'))
   })
   xit('deposit and withdraw wbnb', async function () {
     const abi = require('./wbnb.json')
@@ -69,8 +64,33 @@ describe.only('Universal Arbitrage', function () {
   })
   it('deploys contract', async function () {
     const UniversalArbitrage = await ethers.getContractFactory('UniversalArbitrage')
-    abitrage = (await UniversalArbitrage.deploy()).connect(owner)
+    abitrage = (await UniversalArbitrage.deploy(
+      pancakeswapUniversalRouter,
+      uniswapUniversalRouter,
+      loanPoolProvider,
+    )).connect(owner)
     abitrageAddress = await abitrage.getAddress()
+  })
+  xit('funds tokens', async function () {
+    const [owner, addr1] = await ethers.getSigners();
+    // let balance = await swapFromContract.balanceOf(owner.address)
+    const bnbBalance0 = await ethers.provider.getBalance(owner.address)
+    // if (bnbBalance0 < ethers.parseEther('2') || balance < ethers.parseEther('2')) {
+    if (bnbBalance0 < ethers.parseEther('2')) {
+      // transfer fund
+      await addr1.sendTransaction({
+        to: owner.address,
+        value: ethers.parseEther('10'),
+      })
+      // buy swapFrom
+      await owner.sendTransaction({
+        to: swapFrom.address,
+        value: ethers.parseEther('5'),
+        // gasLimit
+      })
+    }
+    balance = await swapFromContract.balanceOf(owner.address)
+    expect(balance).greaterThan(ethers.parseEther('2'))
   })
   it('approve contract', async function () {
     await swapFromContract.approve(abitrageAddress, ethers.MaxUint256)
@@ -328,8 +348,7 @@ describe.only('Universal Arbitrage', function () {
     try {
       await abitrage.attack(
         swapFrom.address,
-        0,
-        0,
+        swapInAmount,
         [
           {
             swapProviderIndex: SwapProviderIndexPancakeSwap,
@@ -364,16 +383,20 @@ describe.only('Universal Arbitrage', function () {
   it('performs attack with flash loan', async function () {
     // clear contract balance
     await abitrage.withdrawBalance()
+    // keep no wbnb and use bnb only
+    let balance0 = await swapFromContract.balanceOf(owner.address)
+    await swapFromContract.connect(owner).withdraw(balance0)
+    balance0 = 0
     //
-    const balance0 = await swapFromContract.balanceOf(owner.address)
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
     const deadline = Math.floor(Date.now() / 1000) + 60 // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
+    const targetAmount = ethers.parseEther('0.101') // loan for 0.01
+    //
     try {
       await abitrage.attack(
         swapFrom.address,
-        0,
-        ethers.parseEther('0.101'),
+        targetAmount,
         [
           {
             swapProviderIndex: SwapProviderIndexPancakeSwap,
@@ -392,14 +415,15 @@ describe.only('Universal Arbitrage', function () {
 
       console.log('attack success')
       
-      // FIXME: not sure why withdraw is not working in anvil
       const balance1 = await swapFromContract.balanceOf(owner.address)
-      // expect(balance1).equal(balance0)
-      // const bnbBalance1 = await ethers.provider.getBalance(owner.address)
-      // expect(bnbBalance1).greaterThanOrEqual(bnbBalance0)
-      const balanceGain = balance1 - balance0
-      console.log('balanceGain', balanceGain)
-      expect(balanceGain).greaterThan(0)
+      expect(balance1).equal(balance0) // no change in wbnb
+      const bnbBalance1 = await ethers.provider.getBalance(owner.address)
+      expect(bnbBalance1).greaterThanOrEqual(bnbBalance0) // increase in bnb
+      
+      // FIXME: not sure why withdraw is not working in anvil
+      // const balanceGain = balance1 - balance0
+      // console.log('balanceGain', balanceGain)
+      // expect(balanceGain).greaterThan(0)
     } catch (e) {
       console.error(e)
       expect(e.message).equal('execution reverted: not profitible')

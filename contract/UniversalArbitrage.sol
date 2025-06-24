@@ -20,60 +20,90 @@ struct SwapParams {
 }
 
 contract UniversalArbitrage is Ownable {
-    // TODO: fetch constant from contructor
-    address internal constant PANCAKESWAP_UNIVERSAL_ROUTER = 0xd9C500DfF816a1Da21A48A732d3498Bf09dc9AEB;
-    address internal constant UNISWAP_UNIVERSAL_ROUTER = 0x1906c1d672b88cD1B9aC7593301cA990F94Eae07;
-    // address public constant AAVE_POOL_PROVIDER = 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e;
-    IAavePoolAddressesProvider internal loanPoolProvider = IAavePoolAddressesProvider(0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e);
+    // BSC V4: 0xd9C500DfF816a1Da21A48A732d3498Bf09dc9AEB
+    // BSC V3: 0x1A0A18AC4BECDDbd6389559687d1A73d8927E416
+    address internal pancakeswapUniversalRouter;
     
-    /// @notice used to signal that an action should use the owner's entire balance of a currency
-    /// This value is equivalent to 1<<255, i.e. a singular 1 in the most significant bit.
-    uint256 internal constant OWNER_BALANCE = 0x8000000000000000000000000000000000000000000000000000000000000000;
+    // BSC: 0x1906c1d672b88cD1B9aC7593301cA990F94Eae07
+    address internal uniswapUniversalRouter;
 
+    // BSC: 0xff75B6da14FfbbfD355Daf7a2731456b3562Ba6D
+    // ETH: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e
+    IAavePoolAddressesProvider internal loanPoolProvider;
+    
     IERC20Wrapped internal constant WBNB = IERC20Wrapped(0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c);
 
-    constructor() Ownable(msg.sender) {}
+    constructor(address psur, address usur, address alpp) Ownable(msg.sender) {
+        pancakeswapUniversalRouter = psur;
+        uniswapUniversalRouter = usur;
+        loanPoolProvider = IAavePoolAddressesProvider(alpp);
+    }
+
+    function updatePancakeswapUniversalRouter(address addr) external onlyOwner {
+        pancakeswapUniversalRouter = addr;
+    }
+
+    function updateUniswapUniversalRouter(address addr) external onlyOwner {
+        uniswapUniversalRouter = addr;
+    }
+
+    function updateLoanPoolProvider(address addr) external onlyOwner {
+        loanPoolProvider = IAavePoolAddressesProvider(addr);
+    }
 
     function attack(
         // TODO: flash loan
         address tokenIn,
-        uint256 amountIn,
-        uint256 loanTarget,
+        uint256 attackAmount,
         SwapParams[] calldata swaps,
         uint256 deadline
     ) onlyOwner external payable returns (uint256 amountOut) {
-        if (tokenIn == address(WBNB)) {
-            WBNB.deposit{value: address(this).balance - 1}();
-            WBNB.deposit{value: 1}();
+        console.log("attack");
+        console.log("attackAmount");
+        console.log(attackAmount);
+
+        if (tokenIn == address(WBNB) && address(this).balance > 0) {
+            WBNB.deposit{value: address(this).balance}();
         }
-        if (amountIn == OWNER_BALANCE) {
-            // get all balance of sender
-            amountIn = IERC20(tokenIn).balanceOf(msg.sender);
+
+        uint256 currentBalance = IERC20(tokenIn).balanceOf(address(this));
+        console.log("currentBalance");
+        console.log(currentBalance);
+
+        if (currentBalance > attackAmount) {
+            console.log("too many balance in the contract");
+            // note: cannot reduce currentBalance here as executeMultipleSwaps would use all current balance
+            attackAmount = currentBalance;
         }
+        
+        uint256 amountIn = IERC20(tokenIn).balanceOf(msg.sender);
+        if (amountIn > attackAmount - currentBalance) amountIn = attackAmount - currentBalance;
+
         console.log("amountIn");
         console.log(amountIn);
 
-        uint256 totalAmountIn = IERC20(tokenIn).balanceOf(address(this)) + amountIn;
-        console.log("totalAmountIn");
-        console.log(totalAmountIn);
-        console.log("loanTarget");
-        console.log(loanTarget);
+        if (amountIn > 0) {
+            // transfer all balance to this contract. not using amountIn in executeMultipleSwaps
+            IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+            currentBalance += amountIn;
+        }
 
-        console.log("before attack");
-
-        if (loanTarget > totalAmountIn) {
+        if (attackAmount > currentBalance) {
             console.log("get loan");
-            IAavePool(loanPoolProvider.getPool()).flashLoanSimple(
+            address pool = loanPoolProvider.getPool();
+            console.log("pool");
+            console.log(pool);
+            IAavePool(pool).flashLoanSimple(
                 address(this),
                 tokenIn,
-                loanTarget - totalAmountIn,
+                attackAmount - currentBalance,
                 abi.encode(
-                    amountIn, swaps, deadline
+                    swaps, deadline
                 ),
                 0
             );
         } else {
-            performAttack(tokenIn, amountIn, swaps, deadline);
+            performAttack(tokenIn, swaps, deadline);
         }
 
         console.log("after attack");
@@ -83,21 +113,14 @@ contract UniversalArbitrage is Ownable {
         console.log("balance after swap");
         console.log(amountOut);
         
-        require(amountOut > totalAmountIn, "not profitible");
+        require(amountOut > currentBalance, "not profitible");
 
         console.log("attack success");
-        emit AttackPerformed(tokenIn, amountIn, loanTarget);
+        emit AttackPerformed(tokenIn, currentBalance, attackAmount);
         console.log("wtf1");
 
-        // FIXME: not sure why withdraw is not working in anvil
-        /*
         if (tokenIn == address(WBNB)) {
-            console.log("wtf2");
-            amountOut = IERC20(tokenIn).balanceOf(address(this));
-            console.log(amountOut);
-            // unwarp and transfer back
-            // WBNB.withdraw(amountOut);
-            // WBNB.withdraw(test, address(WBNB));
+            WBNB.withdraw(amountOut);
             console.log("wtf3");
             // Note: ignore error for transfer
             payable(msg.sender).transfer(amountOut); // TODO: supress warning
@@ -109,11 +132,12 @@ contract UniversalArbitrage is Ownable {
             );
         }
         console.log("wtf5");
-        */
-        IERC20(tokenIn).transfer(
-            msg.sender,
-            amountOut
-        );
+
+        // FIXME: not sure why withdraw is not working in anvil
+        // IERC20(tokenIn).transfer(
+        //     msg.sender,
+        //     amountOut
+        // );
     }
 
     // callback from simple AAVE flash load (flashLoanSimple)
@@ -125,6 +149,7 @@ contract UniversalArbitrage is Ownable {
         bytes calldata params
     ) external returns (bool) {
         console.log("executeOperation");
+        console.log(tokenIn);
         console.log(amount);
         console.log(premium);
 
@@ -132,16 +157,17 @@ contract UniversalArbitrage is Ownable {
         require(initiator == address(this), "Invalid initiator");
 
         // // TODO: use ByteLab to handle array in encoded bytes
-        // (uint256 amountIn, SwapParams[] memory swaps, uint256 deadline) = 
-        //     abi.decode(params, (uint256, SwapParams[], uint256));
+        // (SwapParams[] memory swaps, uint256 deadline) = 
+        //     abi.decode(params, (SwapParams[], uint256));
 
         // Decode params except swaps, which remains in calldata
-        (uint256 amountIn, , uint256 deadline) = 
-            abi.decode(params, (uint256, SwapParams[], uint256));
+        ( , uint256 deadline) = 
+            abi.decode(params, (SwapParams[], uint256));
         // Extract swaps directly from calldata using assembly
         SwapParams[] calldata swaps;
         assembly {
-            let offset := add(params.offset, mul(4, 0x20)) // Skip first 4 fields (address, uint256, uint256, uint256)
+            // let offset := add(params.offset, mul(0, 0x20)) // Skip first n fields
+            let offset := params.offset
             swaps.offset := add(calldataload(offset), add(params.offset, 0x20))
             swaps.length := calldataload(sub(swaps.offset, 0x20))
         }
@@ -149,9 +175,8 @@ contract UniversalArbitrage is Ownable {
         console.log("before executeOperation performAttack");
         console.log(swaps.length);
 
-        // Note that amountIn is the amount that still holding by caller
         // executeMultipleSwaps would use up all amount held by this contract
-        performAttack(tokenIn, amountIn, swaps, deadline);
+        performAttack(tokenIn, swaps, deadline);
 
         console.log("after executeOperation performAttack");
         
@@ -161,21 +186,19 @@ contract UniversalArbitrage is Ownable {
 
     function performAttack(
         address tokenIn,
-        uint256 amountIn,
         SwapParams[] calldata swaps,
         uint256 deadline
     ) private {
         // TODO: other logics?
-        // Note that amountIn is the amount that still holding by caller
         // executeMultipleSwaps would use up all amount held by this contract
-        executeMultipleSwaps(tokenIn, amountIn, swaps, deadline);
+        executeMultipleSwaps(tokenIn, 0, swaps, deadline);
     }
 
-    function getRouterAddress(uint8 swapProviderIndex) public pure returns (address routerAddress) {
+    function getRouterAddress(uint8 swapProviderIndex) public view returns (address routerAddress) {
         if (swapProviderIndex == 0) {
-            routerAddress = PANCAKESWAP_UNIVERSAL_ROUTER;
+            routerAddress = pancakeswapUniversalRouter;
         } else {
-            routerAddress = UNISWAP_UNIVERSAL_ROUTER;
+            routerAddress = uniswapUniversalRouter;
         }
     }
 
@@ -200,19 +223,27 @@ contract UniversalArbitrage is Ownable {
         for (uint8 i = 0; i < swaps.length; i++) {
             SwapParams calldata swap = swaps[i];
 
+            console.log("swap");
+            console.log(i);
+            console.log("command");
+            console.log(uint8(swap.command));
+
             console.log(swap.swapProviderIndex);
 
             address routerAddress = getRouterAddress(swap.swapProviderIndex);
 
             // transfer balance for swap
             if (i == 0) {
-                IERC20(tokenIn).transferFrom(
-                    msg.sender,
-                    routerAddress,
-                    amountIn
-                );
+                if (amountIn > 0) {
+                    IERC20(tokenIn).transferFrom(
+                        msg.sender,
+                        routerAddress,
+                        amountIn
+                    );
+                }
                 // also use all balance of this contract
                 uint256 balance = IERC20(tokenIn).balanceOf(address(this));
+                require(amountIn + balance > 0, "no input for trading");
                 if (balance > 0) {
                     IERC20(tokenIn).transferFrom(
                         address(this),
