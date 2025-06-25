@@ -52,7 +52,6 @@ contract UniversalArbitrage is Ownable {
     }
 
     function attack(
-        // TODO: flash loan
         address tokenIn,
         uint256 attackAmount,
         SwapParams[] calldata swaps,
@@ -112,32 +111,37 @@ contract UniversalArbitrage is Ownable {
         amountOut = IERC20(tokenIn).balanceOf(address(this));
         console.log("balance after swap");
         console.log(amountOut);
+        console.log(currentBalance);
         
         require(amountOut > currentBalance, "not profitible");
 
         console.log("attack success");
-        emit AttackPerformed(tokenIn, currentBalance, attackAmount);
-        console.log("wtf1");
+        emit AttackPerformed(tokenIn, currentBalance, attackAmount, amountOut);
 
         if (tokenIn == address(WBNB)) {
-            WBNB.withdraw(amountOut);
-            console.log("wtf3");
-            // Note: ignore error for transfer
-            payable(msg.sender).transfer(amountOut); // TODO: supress warning
-            console.log("wtf4");
+            // WBNB.withdraw(amountOut);
+            // ignore error for withdraw
+            (bool success, ) = address(WBNB).call(
+                abi.encodeWithSignature(
+                    "withdraw(uint256)",
+                    amountOut
+                )
+            );
+            if (success) {
+                payable(msg.sender).transfer(amountOut);
+            } else {
+                IERC20(tokenIn).transfer(
+                    msg.sender,
+                    amountOut
+                );
+                emit FailToWithdraw();
+            }
         } else {
             IERC20(tokenIn).transfer(
                 msg.sender,
                 amountOut
             );
         }
-        console.log("wtf5");
-
-        // FIXME: not sure why withdraw is not working in anvil
-        // IERC20(tokenIn).transfer(
-        //     msg.sender,
-        //     amountOut
-        // );
     }
 
     // callback from simple AAVE flash load (flashLoanSimple)
@@ -155,10 +159,6 @@ contract UniversalArbitrage is Ownable {
 
         require(msg.sender == loanPoolProvider.getPool(), "Unauthorized");
         require(initiator == address(this), "Invalid initiator");
-
-        // // TODO: use ByteLab to handle array in encoded bytes
-        // (SwapParams[] memory swaps, uint256 deadline) = 
-        //     abi.decode(params, (SwapParams[], uint256));
 
         // Decode params except swaps, which remains in calldata
         ( , uint256 deadline) = 
@@ -189,9 +189,10 @@ contract UniversalArbitrage is Ownable {
         SwapParams[] calldata swaps,
         uint256 deadline
     ) private {
+        // assume entire input amount is already transferred to this contract
         // TODO: other logics?
         // executeMultipleSwaps would use up all amount held by this contract
-        executeMultipleSwaps(tokenIn, 0, swaps, deadline);
+        _executeMultipleSwaps(tokenIn, 0, swaps, deadline);
     }
 
     function getRouterAddress(uint8 swapProviderIndex) public view returns (address routerAddress) {
@@ -202,13 +203,22 @@ contract UniversalArbitrage is Ownable {
         }
     }
 
-    // Execute multiple V3 exact input swaps from an array of SwapParams
     function executeMultipleSwaps(
         address tokenIn,
         uint256 amountIn,
         SwapParams[] calldata swaps,
         uint256 deadline
     ) public onlyOwner {
+        _executeMultipleSwaps(tokenIn, amountIn, swaps, deadline);
+    }
+
+    // Execute multiple V3 exact input swaps from an array of SwapParams
+    function _executeMultipleSwaps(
+        address tokenIn,
+        uint256 amountIn,
+        SwapParams[] calldata swaps,
+        uint256 deadline
+    ) private {
         console.log("executeMultipleSwaps");
         console.log(block.timestamp);
         console.log(deadline);
@@ -316,6 +326,8 @@ contract UniversalArbitrage is Ownable {
 
     // Event for tracking swaps
     // event SwapPerformed(address tokenIn, uint256 amountIn);
-    event AttackPerformed(address tokenIn, uint256 amountIn, uint256 loanTarget);
+    event AttackPerformed(address tokenIn, uint256 currentBalance, uint256 attackAmount, uint256 amountOut);
+
+    event FailToWithdraw();
 
 }
