@@ -419,15 +419,10 @@ describe('Universal Arbitrage', function () {
       
       const balance1 = await swapFromContract.balanceOf(owner.address)
 
-      // expect(balance1).equal(0) // no change in wbnb
-      // const bnbBalance1 = await ethers.provider.getBalance(owner.address)
-      // expect(bnbBalance1).greaterThanOrEqual(bnbBalance0) // increase in bnb
+      expect(balance1).equal(0) // no change in wbnb
+      const bnbBalance1 = await ethers.provider.getBalance(owner.address)
+      expect(bnbBalance1).greaterThanOrEqual(bnbBalance0) // increase in bnb
       
-      // FIXME: not sure why withdraw is not working in anvil
-      const balanceGain = balance1
-      console.log('balanceGain', balanceGain)
-      expect(balanceGain).greaterThan(0)
-
       // resume wbnb balance
       await owner.sendTransaction({
         to: swapFrom.address,

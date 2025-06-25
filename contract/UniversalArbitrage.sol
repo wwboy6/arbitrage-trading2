@@ -119,23 +119,8 @@ contract UniversalArbitrage is Ownable {
         emit AttackPerformed(tokenIn, currentBalance, attackAmount, amountOut);
 
         if (tokenIn == address(WBNB)) {
-            // WBNB.withdraw(amountOut);
-            // ignore error for withdraw
-            (bool success, ) = address(WBNB).call(
-                abi.encodeWithSignature(
-                    "withdraw(uint256)",
-                    amountOut
-                )
-            );
-            if (success) {
-                payable(msg.sender).transfer(amountOut);
-            } else {
-                IERC20(tokenIn).transfer(
-                    msg.sender,
-                    amountOut
-                );
-                emit FailToWithdraw();
-            }
+            WBNB.withdraw(amountOut);
+            payable(msg.sender).transfer(amountOut);
         } else {
             IERC20(tokenIn).transfer(
                 msg.sender,
@@ -314,6 +299,8 @@ contract UniversalArbitrage is Ownable {
         }
         // emit SwapPerformed(tokenIn, amountIn);
     }
+
+    receive() external payable {}
 
     // Withdraw tokens from the contract.
     function withdrawTokens(address token, uint256 amount) external onlyOwner {
