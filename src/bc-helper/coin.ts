@@ -1,7 +1,8 @@
+import { Token } from '@pancakeswap/sdk'
 import { bscTokens } from '@pancakeswap/tokens'
 import { bsc } from 'viem/chains'
 
-export function findTokenWithSymbol(symbol : string, chainId = bsc.id) {
+export function findTokenWithSymbol(symbol : string, chainId = bsc.id): Token {
   // FIXME: find tokens w.r.t. chainId
   if (chainId !== bsc.id) throw new Error('not yet implemented')
   const token = Object.values(bscTokens).find(t => t.symbol === symbol)

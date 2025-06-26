@@ -1,5 +1,3 @@
-export type Route
-
 export type RouteSearcherOptions = {
 
 }
