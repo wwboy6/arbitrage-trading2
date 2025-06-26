@@ -129,7 +129,9 @@ export class ArbitrageAttacker {
             maxPriorityFeePerGas, // FIXME: double check this
             maxFeePerGas: this.gasPrice + maxPriorityFeePerGas,
           } as any)
+          console.log('attack success')
           console.log(hash)
+          this.reportAttack(hash)
         } catch (e) {
           // TODO: detect which error it is
           // console.log(e)
@@ -137,6 +139,29 @@ export class ArbitrageAttacker {
         }
       }
     }
+
+  }
+
+  async reportAttack(hash: Hash) {
+    
+    // Get transaction receipt
+    const receipt = await this.chainClient.waitForTransactionReceipt({ hash })
+
+    // Extract gas used and effective gas price
+    const gasUsed = receipt.gasUsed
+    const effectiveGasPrice = receipt.effectiveGasPrice
+
+    // Get base fee from the block
+    const block = await this.chainClient.getBlock({ blockNumber: receipt.blockNumber })
+    const baseFeePerGas = block.baseFeePerGas || BigInt(0) // Fallback for non-EIP-1559
+
+    // Calculate priority fee
+    const priorityFeePerGas = effectiveGasPrice - baseFeePerGas
+    console.log('priorityFeePerGas', priorityFeePerGas)
+
+    // Calculate total gas cost
+    const totalGasCost = gasUsed * effectiveGasPrice
+    console.log('totalGasCost', totalGasCost)
 
   }
 }

@@ -6,8 +6,8 @@ const IERC20 = require('@openzeppelin/contracts/build/contracts/IERC20.json')
 
 const { abi: IUniversalRouterAbi } = require("@uniswap/universal-router/out/IUniversalRouter.sol/IUniversalRouter.json");
 
-const { CommandType, pancakeswapUniversalRouter, uniswapUniversalRouter } = require('./universal-router');
-const { loanPoolProvider } = require('./aave');
+const { CommandType, pancakeswapUniversalRouter, uniswapUniversalRouter } = require('../include/universal-router');
+const { loanPoolProvider } = require('../include/aave');
 
 const SwapProviderIndexPancakeSwap = 0
 const SwapProviderIndexUniSwap = 1
@@ -30,6 +30,7 @@ describe('Setup market', function () {
       pancakeswapUniversalRouter,
       uniswapUniversalRouter,
       loanPoolProvider,
+      wbnb.address,
     )).connect(owner)
     abitrageAddress = await abitrage.getAddress()
 
@@ -47,7 +48,6 @@ describe('Setup market', function () {
     // transfering 1 large amount is too time consuming that may timeout
     for (let i = 0; i < 5; ++i) {
       const amount = ethers.parseEther('100')
-      const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
       await abitrage.executeMultipleSwaps(
         wbnb.address,
         amount,
@@ -60,8 +60,7 @@ describe('Setup market', function () {
               [wbnb.address, swapPoolFeeLoopback, swapTo1.address],
             ),
           }
-        ],
-        deadline
+        ]
       )
     }
   })
@@ -69,7 +68,6 @@ describe('Setup market', function () {
     const amount = ethers.parseEther('100')
     // transfering 1 large amount is too time consuming that may timeout
     for (let i = 0; i < 5; ++i) {
-      const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
       await abitrage.executeMultipleSwaps(
         wbnb.address,
         amount,
@@ -82,14 +80,12 @@ describe('Setup market', function () {
               [wbnb.address, swapPoolFeeLoopback, swapTo1.address],
             ),
           }
-        ],
-        deadline
+        ]
       )
     }
   })
   it('buys a lot token from target pancake v2 pools', async function () {
     const amount = ethers.parseEther('500')
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     await abitrage.executeMultipleSwaps(
       wbnb.address,
       amount,
@@ -100,12 +96,10 @@ describe('Setup market', function () {
           path: ethers.AbiCoder.defaultAbiCoder().encode(["address[]"], [[wbnb.address, v2SwapTo1.address]])
         }
       ],
-      deadline
     )
   })
   it('buys a lot token from target uni v2 pools', async function () {
     const amount = ethers.parseEther('500')
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     await abitrage.executeMultipleSwaps(
       wbnb.address,
       amount,
@@ -116,7 +110,6 @@ describe('Setup market', function () {
           path: ethers.AbiCoder.defaultAbiCoder().encode(["address[]"], [[wbnb.address, v2SwapTo1.address]])
         }
       ],
-      deadline
     )
   })
 })

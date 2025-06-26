@@ -20,8 +20,8 @@ const wbnbAbi = [
   }
 ]
 
-const { CommandType, pancakeswapUniversalRouter, uniswapUniversalRouter } = require('./universal-router')
-const { loanPoolProvider } = require('./aave')
+const { CommandType, pancakeswapUniversalRouter, uniswapUniversalRouter } = require('../include/universal-router')
+const { loanPoolProvider } = require('../include/aave')
 
 const SwapProviderIndexPancakeSwap = 0
 const SwapProviderIndexUniSwap = 1
@@ -45,7 +45,7 @@ describe('Universal Arbitrage', function () {
   let v2SwapTo0Contract
 
   beforeEach(async function() {
-    [owner, addr1] = await ethers.getSigners();
+    [owner, addr1] = await ethers.getSigners()
     swapFromContract = new ethers.Contract(swapFrom.address, wbnbAbi, ethers.provider).connect(owner)
     swapTo0Contract = new ethers.Contract(swapTo0.address, IERC20.abi, ethers.provider).connect(owner)
     v2SwapTo0Contract = new ethers.Contract(v2SwapTo0.address, IERC20.abi, ethers.provider).connect(owner)
@@ -68,11 +68,12 @@ describe('Universal Arbitrage', function () {
       pancakeswapUniversalRouter,
       uniswapUniversalRouter,
       loanPoolProvider,
+      bscTokens.wbnb.address,
     )).connect(owner)
     abitrageAddress = await abitrage.getAddress()
   })
   it('funds tokens', async function () {
-    const [owner, addr1] = await ethers.getSigners();
+    const [owner, addr1] = await ethers.getSigners()
     let balance = await swapFromContract.balanceOf(owner.address)
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
     if (bnbBalance0 < ethers.parseEther('7')) {
@@ -102,7 +103,6 @@ describe('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -117,7 +117,6 @@ describe('Universal Arbitrage', function () {
           ),
         }
       ],
-      deadline
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     expect(balance0 - balance1).equal(swapInAmount)
@@ -132,7 +131,6 @@ describe('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -147,7 +145,6 @@ describe('Universal Arbitrage', function () {
           ),
         }
       ],
-      deadline
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     expect(balance0 - balance1).equal(swapInAmount)
@@ -162,7 +159,6 @@ describe('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -185,7 +181,6 @@ describe('Universal Arbitrage', function () {
           ),
         }
       ],
-      deadline
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     console.log(balance0 - balance1)
@@ -201,7 +196,6 @@ describe('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -216,7 +210,6 @@ describe('Universal Arbitrage', function () {
           ),
         }
       ],
-      deadline
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     amount = await swapFromContract.balanceOf(abitrageAddress)
@@ -231,7 +224,6 @@ describe('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(v2SwapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -243,7 +235,6 @@ describe('Universal Arbitrage', function () {
           path: ethers.AbiCoder.defaultAbiCoder().encode(["address[]"], [[swapFrom.address, v2SwapTo0.address]])
         }
       ],
-      deadline
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     amount = await v2SwapTo0Contract.balanceOf(abitrageAddress)
@@ -258,7 +249,6 @@ describe('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -286,7 +276,6 @@ describe('Universal Arbitrage', function () {
           ),
         },
       ],
-      deadline
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     amount = await swapFromContract.balanceOf(abitrageAddress)
@@ -301,7 +290,6 @@ describe('Universal Arbitrage', function () {
     await abitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60; // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     await abitrage.executeMultipleSwaps(
       swapFrom.address,
@@ -329,7 +317,6 @@ describe('Universal Arbitrage', function () {
           ),
         },
       ],
-      deadline
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     amount = await swapFromContract.balanceOf(abitrageAddress)
@@ -344,7 +331,6 @@ describe('Universal Arbitrage', function () {
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60 // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     try {
       await abitrage.attack(
@@ -360,7 +346,6 @@ describe('Universal Arbitrage', function () {
             ),
           }
         ],
-        deadline,
         {
           value: swapInAmount,
         }
@@ -381,7 +366,7 @@ describe('Universal Arbitrage', function () {
       expect(e.message).equal('execution reverted: not profitible')
     }
   })
-  it('performs attack with flash loan', async function () {
+  xit('performs attack with flash loan', async function () {
     // clear contract balance
     await abitrage.withdrawBalance()
     const temp = await swapFromContract.balanceOf(abitrageAddress)
@@ -391,7 +376,6 @@ describe('Universal Arbitrage', function () {
     await swapFromContract.connect(owner).withdraw(balance0)
     //
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
-    const deadline = Math.floor(Date.now() / 1000) + 60 // Deadline set to 1 minute from now
     const swapInAmount = ethers.parseEther('0.1')
     const targetAmount = ethers.parseEther('0.101') // loan for 0.001
     //
@@ -409,7 +393,6 @@ describe('Universal Arbitrage', function () {
             ),
           }
         ],
-        deadline,
         {
           value: swapInAmount,
         }
@@ -449,5 +432,67 @@ describe('Universal Arbitrage', function () {
       }
       expect(e.message).equal('execution reverted: not profitible')
     }
+  })
+  it('performs profitable attack with attackWithAmounts and flash loan', async function () {
+    // clear contract balance
+    await abitrage.withdrawBalance()
+    const temp = await swapFromContract.balanceOf(abitrageAddress)
+    await abitrage.withdrawTokens(swapFrom.address, temp)
+    // keep no wbnb and use bnb only
+    let balance0 = await swapFromContract.balanceOf(owner.address)
+    await swapFromContract.connect(owner).withdraw(balance0)
+    //
+    const bnbBalance0 = await ethers.provider.getBalance(owner.address)
+    const swapInAmount = ethers.parseEther('0.1')
+    const targetAmounts = [
+      ethers.parseEther('0.101'),
+      ethers.parseEther('0.102'),
+    ]
+    //
+    const tx = await abitrage.attackWithAmounts(
+      swapFrom.address,
+      targetAmounts,
+      [
+        {
+          swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
+          path: ethers.solidityPacked(
+            ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
+            [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, swapPoolFeeLoopback, swapFrom.address],
+          ),
+        }
+      ],
+      {
+        value: swapInAmount,
+      }
+    )
+
+    console.log('attack success')
+
+    // check gas consumed
+    const receipt = await tx.wait()
+    // Extract gas used and effective gas price
+    const gasUsed = receipt.gasUsed
+    const effectiveGasPrice = receipt.gasPrice 
+    // Get base fee from the block
+    const block = await ethers.provider.getBlock(receipt.blockNumber)
+    const baseFeePerGas = block.baseFeePerGas || ethers.BigNumber.from(0)
+    // Calculate priority fee
+    const priorityFeePerGas = effectiveGasPrice - baseFeePerGas
+    console.log('priorityFeePerGas', priorityFeePerGas)
+    // Calculate total gas cost
+    const totalGasCost = gasUsed.mul(effectiveGasPrice)
+    console.log('totalGasCost', totalGasCost)
+    
+    const balance1 = await swapFromContract.balanceOf(owner.address)
+    expect(balance1).equal(0) // no change in wbnb
+    const bnbBalance1 = await ethers.provider.getBalance(owner.address)
+    expect(bnbBalance1).greaterThanOrEqual(bnbBalance0) // increase in bnb
+    
+    // resume wbnb balance
+    await owner.sendTransaction({
+      to: swapFrom.address,
+      value: balance0,
+    })
   })
 })

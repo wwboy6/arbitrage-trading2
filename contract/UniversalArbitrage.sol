@@ -55,9 +55,8 @@ contract UniversalArbitrage is Ownable {
     
     function attackWithAmounts(
         address tokenIn,
-        uint256[] attackAmounts,
-        SwapParams[] calldata swaps,
-        uint256 deadline
+        uint256[] calldata attackAmounts,
+        SwapParams[] calldata swaps
     ) onlyOwner external payable returns (uint256 amountGain) {
         if (tokenIn == address(WBNB) && address(this).balance > 0) {
             WBNB.deposit{value: address(this).balance}();
@@ -65,9 +64,10 @@ contract UniversalArbitrage is Ownable {
         uint256 originalBalance = IERC20(tokenIn).balanceOf(address(this));
         uint256 currentBalance = originalBalance;
         uint256 amountInAvailable = IERC20(tokenIn).balanceOf(msg.sender);
-        uint256 amountOut = 0;
         for (uint8 i = 0; i < attackAmounts.length; i++) {
+            // console.log("-------------- new target amount ---------------");
             uint256 attackAmount = attackAmounts[i];
+            // console.log(attackAmount);
             if (currentBalance > attackAmount) {
                 // note: cannot reduce currentBalance here as executeMultipleSwaps would use all current balance
                 attackAmount = currentBalance;
@@ -80,15 +80,20 @@ contract UniversalArbitrage is Ownable {
                 currentBalance += amountIn;
                 amountInAvailable -= amountIn;
             }
-            (bool success, bytes result) = address(this).call(
-                this.loanOrPerformAttack.abi,
-                tokenIn,
-                attackAmount - currentBalance,
-                swaps,
-                deadline
+            (bool success, bytes memory result) = address(this).call(
+                abi.encodeWithSelector(
+                    this.loanOrPerformAttack.selector,
+                    tokenIn,
+                    attackAmount,
+                    currentBalance,
+                    swaps
+                )
             );
-            if (!success) break;
-            uint256 currentBalance = abi.decode(result, (uint256));
+            if (!success) {
+                // console.log("stop looping");
+                break;
+            }
+            currentBalance = abi.decode(result, (uint256));
         }
         if (currentBalance <= originalBalance) revert("not forfitable");
         if (tokenIn == address(WBNB)) {
@@ -106,8 +111,7 @@ contract UniversalArbitrage is Ownable {
     function attack(
         address tokenIn,
         uint256 attackAmount,
-        SwapParams[] calldata swaps,
-        uint256 deadline
+        SwapParams[] calldata swaps
     ) onlyOwner external payable returns (uint256 amountGain) {
         // console.log("attack");
         // console.log("attackAmount");
@@ -141,9 +145,9 @@ contract UniversalArbitrage is Ownable {
 
         uint256 amountOut = loanOrPerformAttack(
             tokenIn,
-            attackAmount - currentBalance,
-            swaps,
-            deadline
+            attackAmount,
+            currentBalance,
+            swaps
         );
 
         if (tokenIn == address(WBNB)) {
@@ -160,11 +164,13 @@ contract UniversalArbitrage is Ownable {
     }
 
     function loanOrPerformAttack(
-        uint256 tokenIn,
-        uint256 loanAmount,
-        SwapParams[] calldata swaps,
-        uint256 deadline
-    ) internal returns (uint256 amountOut) {
+        address tokenIn,
+        uint256 attackAmount,
+        uint256 currentBalance,
+        SwapParams[] calldata swaps
+    ) public returns (uint256 amountOut) {
+        // if (msg.sender != owner() && msg.sender != address(this)) revert("access denied");
+        if (_msgSender() != owner() && _msgSender() != address(this)) revert OwnableUnauthorizedAccount(_msgSender());
         if (attackAmount > currentBalance) {
             // console.log("get loan");
             address pool = loanPoolProvider.getPool();
@@ -173,14 +179,12 @@ contract UniversalArbitrage is Ownable {
             IAavePool(pool).flashLoanSimple(
                 address(this),
                 tokenIn,
-                loanAmount,
-                abi.encode(
-                    swaps, deadline
-                ),
+                attackAmount - currentBalance,
+                abi.encode(swaps), // TODO: study if it is costly
                 0
             );
         } else {
-            performAttack(tokenIn, swaps, deadline);
+            performAttack(tokenIn, swaps);
         }
 
         // console.log("after attack");
@@ -214,8 +218,8 @@ contract UniversalArbitrage is Ownable {
         require(initiator == address(this), "Invalid initiator");
 
         // Decode params except swaps, which remains in calldata
-        ( , uint256 deadline) = 
-            abi.decode(params, (SwapParams[], uint256));
+        // ( , uint256 deadline) = 
+        //     abi.decode(params, (SwapParams[], uint256));
         // Extract swaps directly from calldata using assembly
         SwapParams[] calldata swaps;
         assembly {
@@ -229,7 +233,7 @@ contract UniversalArbitrage is Ownable {
         // console.log(swaps.length);
 
         // executeMultipleSwaps would use up all amount held by this contract
-        performAttack(tokenIn, swaps, deadline);
+        performAttack(tokenIn, swaps);
 
         // console.log("after executeOperation performAttack");
         
@@ -239,13 +243,12 @@ contract UniversalArbitrage is Ownable {
 
     function performAttack(
         address tokenIn,
-        SwapParams[] calldata swaps,
-        uint256 deadline
+        SwapParams[] calldata swaps
     ) private {
         // assume entire input amount is already transferred to this contract
         // TODO: other logics?
         // executeMultipleSwaps would use up all amount held by this contract
-        _executeMultipleSwaps(tokenIn, 0, swaps, deadline);
+        _executeMultipleSwaps(tokenIn, 0, swaps);
     }
 
     function getRouterAddress(uint8 swapProviderIndex) public view returns (address routerAddress) {
@@ -259,25 +262,21 @@ contract UniversalArbitrage is Ownable {
     function executeMultipleSwaps(
         address tokenIn,
         uint256 amountIn,
-        SwapParams[] calldata swaps,
-        uint256 deadline
+        SwapParams[] calldata swaps
     ) public onlyOwner {
-        _executeMultipleSwaps(tokenIn, amountIn, swaps, deadline);
+        _executeMultipleSwaps(tokenIn, amountIn, swaps);
     }
 
     // Execute multiple V3 exact input swaps from an array of SwapParams
     function _executeMultipleSwaps(
         address tokenIn,
         uint256 amountIn,
-        SwapParams[] calldata swaps,
-        uint256 deadline
+        SwapParams[] calldata swaps
     ) private {
         // console.log("executeMultipleSwaps");
         // console.log(block.timestamp);
-        // console.log(deadline);
 
         require(swaps.length > 0, "no swaps provided");
-        require(block.timestamp <= deadline, "transaction deadline passed");
 
         // console.log("after verify");
         // console.log(tokenIn);
@@ -360,7 +359,7 @@ contract UniversalArbitrage is Ownable {
             // console.log("before router");
 
             // Execute swaps via Universal Router
-            IUniversalRouter(routerAddress).execute(commands, inputs, deadline);
+            IUniversalRouter(routerAddress).execute(commands, inputs, type(uint256).max);
 
 
             // console.log("after router");
