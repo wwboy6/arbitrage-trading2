@@ -100,7 +100,8 @@ async function main () {
   const block = await chainClient.getBlock({ blockTag: 'latest' })
   const maxGasLimit = block.gasLimit
   console.log('maxGasLimit', maxGasLimit)
-  attacker.maxGasLimit = maxGasLimit
+  // TODO: make a discount in case this would be changed
+  attacker.maxGasLimit = maxGasLimit * 9n / 10n
   const gasPrice = await chainClient.getGasPrice()
   console.log('gasPrice', gasPrice)
   attacker.gasPrice = gasPrice

@@ -43,12 +43,18 @@ export class ArbitrageAttacker {
 
   getTargetAmounts(token: Token) {
     // TODO: config different amount scales for different swapFrom
+    // TODO: gas for 2 amounts: 932595n
+    // TODO: gas limit is about: 
+    // return [
+    //   parseEther('1'),
+    //   parseEther('16'),
+    //   parseEther('64'),
+    //   parseEther('256'),
+    //   parseEther('1024'),
+    // ]
     return [
-      parseEther('1'),
+      parseEther('0.1'),
       parseEther('16'),
-      parseEther('64'),
-      parseEther('256'),
-      parseEther('1024'),
     ]
   }
 
@@ -101,30 +107,48 @@ export class ArbitrageAttacker {
       const targetAmounts = this.getTargetAmounts(swapFrom)
       const swaps = this.constructSwaps(plan)
       // TODO: attackWithAmounts
-      for (const targetAmount of targetAmounts) {
+      try {
+        const targetAmount = targetAmounts[0]
         const value = swapFrom.address === bscTokens.wbnb.address ? bigIntMin(targetAmount, balance - this.transactionCostReserve) : 0n
-        const deadline = Math.floor(Date.now() / 1000) + 60 // Deadline set to 1 minute from now. this don't acutally affect attack
+        // TODO: test if this is working
+        const result = await this.chainClient.simulateContract({
+          address: this.universalArbitrageAddress,
+          abi: universalArbitrageAbi,
+          functionName: 'attack',
+          args: [
+            swapFrom.address,
+            targetAmount,
+            swaps,
+          ],
+          account: this.account,
+          value,
+          // TODO: use stateOverride to let contract know it is a simulation
+        })
+        console.log(result.result)
+        // TODO: check profit, compare it to gas price
+      } catch (e: any) {
+        // TODO: check error
+        if (e.message.indexOf('not profitible') < 0) {
+          console.log('error on checking')
+          console.log(e.message)
+        }
+        continue
+      }
+      // keep attack until it fail
+      while(true) {
         try {
-          // TODO: test if this is working
-          const result = await this.chainClient.simulateContract({
-            address: this.universalArbitrageAddress,
-            abi: universalArbitrageAbi,
-            functionName: 'attack',
-            args: [
-              swapFrom.address,
-              targetAmount,
-              swaps,
-              deadline
-            ],
-            account: this.account,
-            value,
-            // TODO: use stateOverride to let contract know it is a simulation
-          })
-          console.log(result.result)
+          // call attackWithAmounts without other rpc call
           // TODO: adjust maxPriorityFeePerGas
           const maxPriorityFeePerGas = this.gasPrice // double the gas price
           const hash = await this.walletClient.writeContract({
-            ...result.request,
+            address: this.universalArbitrageAddress,
+            abi: universalArbitrageAbi,
+            functionName: 'attackWithAmounts',
+            args: [
+              swapFrom.address,
+              targetAmounts,
+              swaps,
+            ],
             gas: this.maxGasLimit,
             maxPriorityFeePerGas, // FIXME: double check this
             maxFeePerGas: this.gasPrice + maxPriorityFeePerGas,
@@ -132,9 +156,10 @@ export class ArbitrageAttacker {
           console.log('attack success')
           console.log(hash)
           this.reportAttack(hash)
-        } catch (e) {
-          // TODO: detect which error it is
-          // console.log(e)
+        } catch (e: any) {
+          // TODO: check error
+          console.log('error on checking')
+          console.log(e.message)
           break
         }
       }

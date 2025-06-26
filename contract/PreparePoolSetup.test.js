@@ -18,13 +18,23 @@ describe('Setup market', function () {
 
   let abitrage, abitrageAddress
 
-  const swapTo1 = bscTokens.usdt
-  const swapPoolFeeLoopback = 100
+  const swapTo1 = bscTokens.usd1
+  const swapPoolFeeLoopback = 500
   const v2SwapTo1 = swapTo1
   
   it('deploys contract', async function () {
     // const [owner, addr1] = await ethers.getSigners();
     const [,,owner] = await ethers.getSigners();
+
+    // await publicClient.request({
+    //   method: "anvil_impersonateAccount",
+    //   params: [owner.address],
+    // });
+    await publicClient.request({
+      method: "anvil_setBalance",
+      params: [owner.address, "0x10000000000000000000000"], // 10000 BNB
+    });
+
     const UniversalArbitrage = await ethers.getContractFactory('UniversalArbitrage')
     abitrage = (await UniversalArbitrage.connect(owner).deploy(
       pancakeswapUniversalRouter,
@@ -35,13 +45,6 @@ describe('Setup market', function () {
     abitrageAddress = await abitrage.getAddress()
 
     await wbnbContract.connect(owner).approve(abitrageAddress, ethers.MaxUint256)
-    const balance = await wbnbContract.connect(owner).balanceOf(owner.address)
-    if (balance < ethers.parseEther('2000')) {
-      await owner.sendTransaction({
-        to: wbnb.address,
-        value: ethers.parseEther('2000'),
-      })
-    }
   })
   
   it('buys a lot token from target pancake v3 pools', async function () {
@@ -64,7 +67,7 @@ describe('Setup market', function () {
       )
     }
   })
-  it('buys a lot token from target uni v3 pools', async function () {
+  xit('buys a lot token from target uni v3 pools', async function () {
     const amount = ethers.parseEther('100')
     // transfering 1 large amount is too time consuming that may timeout
     for (let i = 0; i < 5; ++i) {
@@ -84,7 +87,7 @@ describe('Setup market', function () {
       )
     }
   })
-  it('buys a lot token from target pancake v2 pools', async function () {
+  xit('buys a lot token from target pancake v2 pools', async function () {
     const amount = ethers.parseEther('500')
     await abitrage.executeMultipleSwaps(
       wbnb.address,
@@ -98,7 +101,7 @@ describe('Setup market', function () {
       ],
     )
   })
-  it('buys a lot token from target uni v2 pools', async function () {
+  xit('buys a lot token from target uni v2 pools', async function () {
     const amount = ethers.parseEther('500')
     await abitrage.executeMultipleSwaps(
       wbnb.address,

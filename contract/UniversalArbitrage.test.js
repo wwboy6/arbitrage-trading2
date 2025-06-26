@@ -481,7 +481,7 @@ describe('Universal Arbitrage', function () {
     const priorityFeePerGas = effectiveGasPrice - baseFeePerGas
     console.log('priorityFeePerGas', priorityFeePerGas)
     // Calculate total gas cost
-    const totalGasCost = gasUsed.mul(effectiveGasPrice)
+    const totalGasCost = gasUsed * effectiveGasPrice
     console.log('totalGasCost', totalGasCost)
     
     const balance1 = await swapFromContract.balanceOf(owner.address)
