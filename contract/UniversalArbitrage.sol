@@ -10,7 +10,7 @@ import "./helper.sol";
 import "./aave.sol";
 import "./IERC20Wrapped.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 struct SwapParams {
     uint8 swapProviderIndex;
@@ -31,12 +31,14 @@ contract UniversalArbitrage is Ownable {
     // ETH: 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e
     IAavePoolAddressesProvider internal loanPoolProvider;
     
-    IERC20Wrapped internal constant WBNB = IERC20Wrapped(0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c);
+    // BSC: 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c
+    IERC20Wrapped internal WBNB;
 
-    constructor(address psur, address usur, address alpp) Ownable(msg.sender) {
+    constructor(address psur, address usur, address alpp, address wb) Ownable(msg.sender) {
         pancakeswapUniversalRouter = psur;
         uniswapUniversalRouter = usur;
         loanPoolProvider = IAavePoolAddressesProvider(alpp);
+        WBNB = IERC20Wrapped(wb);
     }
 
     function updatePancakeswapUniversalRouter(address addr) external onlyOwner {
@@ -50,27 +52,77 @@ contract UniversalArbitrage is Ownable {
     function updateLoanPoolProvider(address addr) external onlyOwner {
         loanPoolProvider = IAavePoolAddressesProvider(addr);
     }
+    
+    function attackWithAmounts(
+        address tokenIn,
+        uint256[] attackAmounts,
+        SwapParams[] calldata swaps,
+        uint256 deadline
+    ) onlyOwner external payable returns (uint256 amountGain) {
+        if (tokenIn == address(WBNB) && address(this).balance > 0) {
+            WBNB.deposit{value: address(this).balance}();
+        }
+        uint256 originalBalance = IERC20(tokenIn).balanceOf(address(this));
+        uint256 currentBalance = originalBalance;
+        uint256 amountInAvailable = IERC20(tokenIn).balanceOf(msg.sender);
+        uint256 amountOut = 0;
+        for (uint8 i = 0; i < attackAmounts.length; i++) {
+            uint256 attackAmount = attackAmounts[i];
+            if (currentBalance > attackAmount) {
+                // note: cannot reduce currentBalance here as executeMultipleSwaps would use all current balance
+                attackAmount = currentBalance;
+            }
+            uint256 amountIn = amountInAvailable;
+            if (amountIn > attackAmount - currentBalance) amountIn = attackAmount - currentBalance;
+            if (amountIn > 0) {
+                // transfer all balance to this contract. not using amountIn in executeMultipleSwaps
+                IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+                currentBalance += amountIn;
+                amountInAvailable -= amountIn;
+            }
+            (bool success, bytes result) = address(this).call(
+                this.loanOrPerformAttack.abi,
+                tokenIn,
+                attackAmount - currentBalance,
+                swaps,
+                deadline
+            );
+            if (!success) break;
+            uint256 currentBalance = abi.decode(result, (uint256));
+        }
+        if (currentBalance <= originalBalance) revert("not forfitable");
+        if (tokenIn == address(WBNB)) {
+            WBNB.withdraw(currentBalance);
+            payable(msg.sender).transfer(currentBalance);
+        } else {
+            IERC20(tokenIn).transfer(
+                msg.sender,
+                currentBalance
+            );
+        }
+        amountGain = currentBalance - originalBalance;
+    }
 
     function attack(
         address tokenIn,
         uint256 attackAmount,
         SwapParams[] calldata swaps,
         uint256 deadline
-    ) onlyOwner external payable returns (uint256 amountOut) {
-        console.log("attack");
-        console.log("attackAmount");
-        console.log(attackAmount);
+    ) onlyOwner external payable returns (uint256 amountGain) {
+        // console.log("attack");
+        // console.log("attackAmount");
+        // console.log(attackAmount);
 
         if (tokenIn == address(WBNB) && address(this).balance > 0) {
             WBNB.deposit{value: address(this).balance}();
         }
 
         uint256 currentBalance = IERC20(tokenIn).balanceOf(address(this));
-        console.log("currentBalance");
-        console.log(currentBalance);
+        // console.log("currentBalance");
+        // console.log(currentBalance);
 
         if (currentBalance > attackAmount) {
-            console.log("too many balance in the contract");
+            // console.log("too many balance in the contract");
             // note: cannot reduce currentBalance here as executeMultipleSwaps would use all current balance
             attackAmount = currentBalance;
         }
@@ -78,8 +130,8 @@ contract UniversalArbitrage is Ownable {
         uint256 amountIn = IERC20(tokenIn).balanceOf(msg.sender);
         if (amountIn > attackAmount - currentBalance) amountIn = attackAmount - currentBalance;
 
-        console.log("amountIn");
-        console.log(amountIn);
+        // console.log("amountIn");
+        // console.log(amountIn);
 
         if (amountIn > 0) {
             // transfer all balance to this contract. not using amountIn in executeMultipleSwaps
@@ -87,36 +139,12 @@ contract UniversalArbitrage is Ownable {
             currentBalance += amountIn;
         }
 
-        if (attackAmount > currentBalance) {
-            console.log("get loan");
-            address pool = loanPoolProvider.getPool();
-            console.log("pool");
-            console.log(pool);
-            IAavePool(pool).flashLoanSimple(
-                address(this),
-                tokenIn,
-                attackAmount - currentBalance,
-                abi.encode(
-                    swaps, deadline
-                ),
-                0
-            );
-        } else {
-            performAttack(tokenIn, swaps, deadline);
-        }
-
-        console.log("after attack");
-
-        // compare balance
-        amountOut = IERC20(tokenIn).balanceOf(address(this));
-        console.log("balance after swap");
-        console.log(amountOut);
-        console.log(currentBalance);
-        
-        require(amountOut > currentBalance, "not profitible");
-
-        console.log("attack success");
-        emit AttackPerformed(tokenIn, currentBalance, attackAmount, amountOut);
+        uint256 amountOut = loanOrPerformAttack(
+            tokenIn,
+            attackAmount - currentBalance,
+            swaps,
+            deadline
+        );
 
         if (tokenIn == address(WBNB)) {
             WBNB.withdraw(amountOut);
@@ -127,6 +155,46 @@ contract UniversalArbitrage is Ownable {
                 amountOut
             );
         }
+
+        amountGain = amountOut - currentBalance;
+    }
+
+    function loanOrPerformAttack(
+        uint256 tokenIn,
+        uint256 loanAmount,
+        SwapParams[] calldata swaps,
+        uint256 deadline
+    ) internal returns (uint256 amountOut) {
+        if (attackAmount > currentBalance) {
+            // console.log("get loan");
+            address pool = loanPoolProvider.getPool();
+            // console.log("pool");
+            // console.log(pool);
+            IAavePool(pool).flashLoanSimple(
+                address(this),
+                tokenIn,
+                loanAmount,
+                abi.encode(
+                    swaps, deadline
+                ),
+                0
+            );
+        } else {
+            performAttack(tokenIn, swaps, deadline);
+        }
+
+        // console.log("after attack");
+
+        // compare balance
+        amountOut = IERC20(tokenIn).balanceOf(address(this));
+        // console.log("balance after swap");
+        // console.log(amountOut);
+        // console.log(currentBalance);
+        
+        require(amountOut > currentBalance, "not profitible");
+
+        // console.log("attack success");
+        emit AttackPerformed(tokenIn, currentBalance, attackAmount, amountOut);
     }
 
     // callback from simple AAVE flash load (flashLoanSimple)
@@ -137,10 +205,10 @@ contract UniversalArbitrage is Ownable {
         address initiator,
         bytes calldata params
     ) external returns (bool) {
-        console.log("executeOperation");
-        console.log(tokenIn);
-        console.log(amount);
-        console.log(premium);
+        // console.log("executeOperation");
+        // console.log(tokenIn);
+        // console.log(amount);
+        // console.log(premium);
 
         require(msg.sender == loanPoolProvider.getPool(), "Unauthorized");
         require(initiator == address(this), "Invalid initiator");
@@ -157,13 +225,13 @@ contract UniversalArbitrage is Ownable {
             swaps.length := calldataload(sub(swaps.offset, 0x20))
         }
 
-        console.log("before executeOperation performAttack");
-        console.log(swaps.length);
+        // console.log("before executeOperation performAttack");
+        // console.log(swaps.length);
 
         // executeMultipleSwaps would use up all amount held by this contract
         performAttack(tokenIn, swaps, deadline);
 
-        console.log("after executeOperation performAttack");
+        // console.log("after executeOperation performAttack");
         
         IERC20(tokenIn).approve(address(msg.sender), amount + premium);
         return true;
@@ -204,26 +272,26 @@ contract UniversalArbitrage is Ownable {
         SwapParams[] calldata swaps,
         uint256 deadline
     ) private {
-        console.log("executeMultipleSwaps");
-        console.log(block.timestamp);
-        console.log(deadline);
+        // console.log("executeMultipleSwaps");
+        // console.log(block.timestamp);
+        // console.log(deadline);
 
         require(swaps.length > 0, "no swaps provided");
         require(block.timestamp <= deadline, "transaction deadline passed");
 
-        console.log("after verify");
-        console.log(tokenIn);
-        console.log(amountIn);
+        // console.log("after verify");
+        // console.log(tokenIn);
+        // console.log(amountIn);
 
         for (uint8 i = 0; i < swaps.length; i++) {
             SwapParams calldata swap = swaps[i];
 
-            console.log("swap");
-            console.log(i);
-            console.log("command");
-            console.log(uint8(swap.command));
+            // console.log("swap");
+            // console.log(i);
+            // console.log("command");
+            // console.log(uint8(swap.command));
 
-            console.log(swap.swapProviderIndex);
+            // console.log(swap.swapProviderIndex);
 
             address routerAddress = getRouterAddress(swap.swapProviderIndex);
 
@@ -248,7 +316,7 @@ contract UniversalArbitrage is Ownable {
                 }
             }
 
-            console.log("after transfer");
+            // console.log("after transfer");
 
             // determin recipient
             address recipient;
@@ -256,10 +324,10 @@ contract UniversalArbitrage is Ownable {
             if (i < swaps.length - 1) {
                 // find next trade router
                 recipient = getRouterAddress(swaps[i+1].swapProviderIndex);
-                console.log("recipient is next router");
+                // console.log("recipient is next router");
             } else {
                 recipient = address(this);
-                console.log("recipient is self");
+                // console.log("recipient is self");
             }
 
             bytes memory commands = new bytes(1);
@@ -269,7 +337,7 @@ contract UniversalArbitrage is Ownable {
             bytes[] memory inputs = new bytes[](1);
 
             if (swap.command == Commands.V2_SWAP_EXACT_IN) {
-                console.log("V2_SWAP_EXACT_IN");
+                // console.log("V2_SWAP_EXACT_IN");
                 address[] memory v2Path = abi.decode(swap.path, (address[]));
                 inputs[0] = abi.encode(
                     recipient,
@@ -279,7 +347,7 @@ contract UniversalArbitrage is Ownable {
                     false
                 );
             } else {
-                console.log("V3");
+                // console.log("V3");
                 inputs[0] = abi.encode(
                     recipient,
                     ActionConstants.CONTRACT_BALANCE,
@@ -289,13 +357,13 @@ contract UniversalArbitrage is Ownable {
                 );
             }
 
-            console.log("before router");
+            // console.log("before router");
 
             // Execute swaps via Universal Router
             IUniversalRouter(routerAddress).execute(commands, inputs, deadline);
 
 
-            console.log("after router");
+            // console.log("after router");
         }
         // emit SwapPerformed(tokenIn, amountIn);
     }
