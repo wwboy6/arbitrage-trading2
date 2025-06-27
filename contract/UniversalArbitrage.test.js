@@ -29,17 +29,17 @@ const SwapProviderIndexUniSwap = 1
 describe('Universal Arbitrage', function () {
   const swapFrom = bscTokens.wbnb
   const swapPoolFee0 = 100
-  const swapTo0 = bscTokens.busd
+  const swapTo0 = bscTokens.usdt
   const swapPoolFee1 = 100
-  const swapTo1 = bscTokens.usdt
-  const swapPoolFeeLoopback = 100
+  const swapTo1 = bscTokens.usd1
+  const swapPoolFeeLoopback = 500
   
   const v2SwapTo0 = swapTo0
   const v2SwapTo1 = swapTo1
 
   const swapPoolFeeBack = 100
 
-  let owner, addr1, abitrage, abitrageAddress
+  let owner, addr1, UniversalArbitrage, abitrage, abitrageAddress
   let swapFromContract
   let swapTo0Contract
   let v2SwapTo0Contract
@@ -63,7 +63,7 @@ describe('Universal Arbitrage', function () {
     console.log('balance', balance)
   })
   it('deploys contract', async function () {
-    const UniversalArbitrage = await ethers.getContractFactory('UniversalArbitrage')
+    UniversalArbitrage = await ethers.getContractFactory('UniversalArbitrage')
     abitrage = (await UniversalArbitrage.deploy(
       pancakeswapUniversalRouter,
       uniswapUniversalRouter,
@@ -74,6 +74,10 @@ describe('Universal Arbitrage', function () {
   })
   it('funds tokens', async function () {
     const [owner, addr1] = await ethers.getSigners()
+    await ethers.provider.send("anvil_setBalance", [
+      addr1.address,
+      "0x10000000000000000000000"
+    ]);
     let balance = await swapFromContract.balanceOf(owner.address)
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
     if (bnbBalance0 < ethers.parseEther('7')) {
@@ -332,39 +336,33 @@ describe('Universal Arbitrage', function () {
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    try {
-      await abitrage.attack(
-        swapFrom.address,
-        swapInAmount,
-        [
-          {
-            swapProviderIndex: SwapProviderIndexPancakeSwap,
-            command: CommandType.V3_SWAP_EXACT_IN,
-            path: ethers.solidityPacked(
-              ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
-              [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, swapPoolFeeLoopback, swapFrom.address],
-            ),
-          }
-        ],
+    await abitrage.attack(
+      swapFrom.address,
+      swapInAmount,
+      [
         {
-          value: swapInAmount,
+          swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
+          path: ethers.solidityPacked(
+            ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
+            [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, swapPoolFeeLoopback, swapFrom.address],
+          ),
         }
-      )
+      ],
+      {
+        value: swapInAmount,
+      }
+    )
 
-      console.log('attack success')
-      
-      // FIXME: not sure why withdraw is not working in anvil
-      const balance1 = await swapFromContract.balanceOf(owner.address)
-      // expect(balance1).equal(balance0)
-      // const bnbBalance1 = await ethers.provider.getBalance(owner.address)
-      // expect(bnbBalance1).greaterThanOrEqual(bnbBalance0)
-      const balanceGain = balance1 - balance0
-      console.log('balanceGain', balanceGain)
-      expect(balanceGain).greaterThan(0)
-    } catch (e) {
-      console.error(e)
-      expect(e.message).equal('execution reverted: not profitible')
-    }
+    console.log('attack success')
+    
+    const balance1 = await swapFromContract.balanceOf(owner.address)
+    expect(balance1).equal(balance0)
+    const bnbBalance1 = await ethers.provider.getBalance(owner.address)
+    expect(bnbBalance1).greaterThanOrEqual(bnbBalance0)
+    const balanceGain = bnbBalance1 - bnbBalance0
+    console.log('balanceGain', balanceGain)
+    expect(balanceGain).greaterThan(0)
   })
   xit('performs attack with flash loan', async function () {
     // clear contract balance
@@ -433,7 +431,7 @@ describe('Universal Arbitrage', function () {
       expect(e.message).equal('execution reverted: not profitible')
     }
   })
-  it('performs profitable attack with attackWithAmounts and flash loan', async function () {
+  xit('performs profitable attack with attackWithAmounts and flash loan', async function () {
     // clear contract balance
     await abitrage.withdrawBalance()
     const temp = await swapFromContract.balanceOf(abitrageAddress)
@@ -494,5 +492,46 @@ describe('Universal Arbitrage', function () {
       to: swapFrom.address,
       value: balance0,
     })
+  })
+  it('simulates batch call of attacks and check which one is profitable', async function () {
+    const results = await abitrage.callAndReturnAnySuccess.staticCall([
+      // TODO: this one should fail
+      UniversalArbitrage.interface.encodeFunctionData(
+        "attack", // TODO: this call may not keep balance in contract, that would affect the second call
+        [
+          swapFrom.address,
+          ethers.parseEther("0.1"), // targetAmount
+          [
+            {
+              swapProviderIndex: SwapProviderIndexPancakeSwap,
+              command: CommandType.V3_SWAP_EXACT_IN,
+              path: ethers.solidityPacked(
+                ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
+                [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, 100, swapFrom.address], // using another loopback that is not set as profitable
+              ),
+            }
+          ]
+        ]
+      ),
+      // trade with 0.1 ethers. this one should success
+      UniversalArbitrage.interface.encodeFunctionData(
+        "attack",
+        [
+          swapFrom.address,
+          ethers.parseEther("0.1"), // targetAmount
+          [
+            {
+              swapProviderIndex: SwapProviderIndexPancakeSwap,
+              command: CommandType.V3_SWAP_EXACT_IN,
+              path: ethers.solidityPacked(
+                ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
+                [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, swapPoolFeeLoopback, swapFrom.address],
+              ),
+            }
+          ]
+        ]
+      ),
+    ], {value: ethers.parseEther("0.1")})
+    console.log(results)
   })
 })

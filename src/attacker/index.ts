@@ -100,6 +100,10 @@ export class ArbitrageAttacker {
     // })
     // TODO: cache balance somewhere?
     const balance = await this.chainClient.getBalance(this.account)
+
+    // batch call plans with first targetAmount
+    // FIXME: TODO: FIXME: TODO: FIXME: TODO: FIXME: TODO: FIXME: TODO: FIXME: TODO: 
+
     for (const plan of plans) {
       // TODO: construct args
       // loop with different amount
@@ -134,34 +138,36 @@ export class ArbitrageAttacker {
         }
         continue
       }
-      // keep attack until it fail
-      while(true) {
-        try {
-          // call attackWithAmounts without other rpc call
-          // TODO: adjust maxPriorityFeePerGas
-          const maxPriorityFeePerGas = this.gasPrice // double the gas price
-          const hash = await this.walletClient.writeContract({
-            address: this.universalArbitrageAddress,
-            abi: universalArbitrageAbi,
-            functionName: 'attackWithAmounts',
-            args: [
-              swapFrom.address,
-              targetAmounts,
-              swaps,
-            ],
-            gas: this.maxGasLimit,
-            maxPriorityFeePerGas, // FIXME: double check this
-            maxFeePerGas: this.gasPrice + maxPriorityFeePerGas,
-          } as any)
-          console.log('attack success')
-          console.log(hash)
-          this.reportAttack(hash)
-        } catch (e: any) {
-          // TODO: check error
-          console.log('error on checking')
-          console.log(e.message)
-          break
-        }
+    }
+
+    
+    // keep attack until it fail
+    while(true) {
+      try {
+        // call attackWithAmounts without other rpc call
+        // TODO: adjust maxPriorityFeePerGas
+        const maxPriorityFeePerGas = this.gasPrice // double the gas price
+        const hash = await this.walletClient.writeContract({
+          address: this.universalArbitrageAddress,
+          abi: universalArbitrageAbi,
+          functionName: 'attackWithAmounts',
+          args: [
+            swapFrom.address,
+            targetAmounts,
+            swaps,
+          ],
+          gas: this.maxGasLimit,
+          maxPriorityFeePerGas, // FIXME: double check this
+          maxFeePerGas: this.gasPrice + maxPriorityFeePerGas,
+        } as any)
+        console.log('attack success')
+        console.log(hash)
+        this.reportAttack(hash)
+      } catch (e: any) {
+        // TODO: check error
+        console.log('error on checking')
+        console.log(e.message)
+        break
       }
     }
 

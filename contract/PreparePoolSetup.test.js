@@ -2,9 +2,10 @@ const { expect } = require('chai')
 const { ethers } = require('hardhat')
 
 const { bscTokens } = require('@pancakeswap/tokens')
-const IERC20 = require('@openzeppelin/contracts/build/contracts/IERC20.json')
+// const IERC20 = require('@openzeppelin/contracts/build/contracts/IERC20.json')
 
-const { abi: IUniversalRouterAbi } = require("@uniswap/universal-router/out/IUniversalRouter.sol/IUniversalRouter.json");
+// const { abi: IUniversalRouterAbi } = require("@uniswap/universal-router/out/IUniversalRouter.sol/IUniversalRouter.json");
+const IERC20Wrapped = require("../artifacts/contracts/IERC20Wrapped.sol/IERC20Wrapped.json")
 
 const { CommandType, pancakeswapUniversalRouter, uniswapUniversalRouter } = require('../include/universal-router');
 const { loanPoolProvider } = require('../include/aave');
@@ -14,7 +15,7 @@ const SwapProviderIndexUniSwap = 1
 
 describe('Setup market', function () {
   const wbnb = bscTokens.wbnb
-  const wbnbContract = new ethers.Contract(wbnb.address, IERC20.abi, ethers.provider)
+  const wbnbContract = new ethers.Contract(wbnb.address, IERC20Wrapped.abi, ethers.provider)
 
   let abitrage, abitrageAddress
 
@@ -26,14 +27,20 @@ describe('Setup market', function () {
     // const [owner, addr1] = await ethers.getSigners();
     const [,,owner] = await ethers.getSigners();
 
+    // FIXME:
+    const nonce = await ethers.provider.getTransactionCount(owner.address, "pending");
+    console.log("Current Nonce:", nonce);
+    owner.nonce = nonce
+
     // await publicClient.request({
     //   method: "anvil_impersonateAccount",
     //   params: [owner.address],
     // });
-    await publicClient.request({
-      method: "anvil_setBalance",
-      params: [owner.address, "0x10000000000000000000000"], // 10000 BNB
-    });
+    await ethers.provider.send("anvil_setBalance", [
+      owner.address,
+      "0x10000000000000000000000"
+    ]);
+    wbnbContract.connect(owner).deposit({value: ethers.parseEther("3000")})
 
     const UniversalArbitrage = await ethers.getContractFactory('UniversalArbitrage')
     abitrage = (await UniversalArbitrage.connect(owner).deploy(

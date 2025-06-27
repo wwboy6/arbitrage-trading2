@@ -9,6 +9,7 @@ import {ActionConstants} from "@uniswap/v4-periphery/src/libraries/ActionConstan
 import "./helper.sol";
 import "./aave.sol";
 import "./IERC20Wrapped.sol";
+import "./BatchUtil.sol";
 
 // import "hardhat/console.sol";
 
@@ -19,7 +20,7 @@ struct SwapParams {
     bytes path;
 }
 
-contract UniversalArbitrage is Ownable {
+contract UniversalArbitrage is CallAndReturnAnySuccess {
     // BSC V4: 0xd9C500DfF816a1Da21A48A732d3498Bf09dc9AEB
     // BSC V3: 0x1A0A18AC4BECDDbd6389559687d1A73d8927E416
     address internal pancakeswapUniversalRouter;
@@ -113,7 +114,7 @@ contract UniversalArbitrage is Ownable {
         uint256 attackAmount,
         SwapParams[] calldata swaps
     ) onlyOwner external payable returns (uint256 amountGain) {
-        // console.log("attack");
+        // console.log("------------------ attack --------------------");
         // console.log("attackAmount");
         // console.log(attackAmount);
 
