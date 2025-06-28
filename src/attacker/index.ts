@@ -1,5 +1,5 @@
 import { PoolType } from '@pancakeswap/smart-router'
-import { SwapProviderIndex, TradeRoute, tradeRouteToString } from '../bc-helper/route'
+import { constructPathData, SwapProviderIndex, TradeRoute, tradeRouteToString } from '../bc-helper/route'
 import universalArbitrageAbi from '../../contract/UniversalArbitrage.abi.json'
 import { Account, Hash, PublicClient, WalletClient, parseEther, createWalletClient, parseGwei, encodeFunctionData, formatUnits } from 'viem'
 import { Token } from '@pancakeswap/sdk'
@@ -78,24 +78,12 @@ export class ArbitrageAttacker {
 
   constructSwaps(plan: ArbitrageAttackerPlan) {
     return plan.routes.map(route => {
-      let path: any
       let comandType: string
       switch(route.type) {
         case PoolType.V2:
           comandType = CommandType.V2_SWAP_EXACT_IN
-          path = AbiCoder.defaultAbiCoder().encode(['address[]'], [[route.swapFrom.address, ...route.path.map(t => t.address)]])
-          break;
         case PoolType.V3:
           comandType = CommandType.V3_SWAP_EXACT_IN
-          const { types, args } = route.path.reduce((result, next) => {
-            result.types = [...result.types, 'uint24', 'address']
-            result.args = [...result.args, next.fee, next.swapTo.address]
-            return result
-          }, {
-            types: ['address'],
-            args: [route.swapFrom.address] as any[]
-          })
-          path = solidityPacked(types, args)
           break;
         default:
           throw new Error(`unknown command type ${(route as any).type}`)
@@ -103,13 +91,29 @@ export class ArbitrageAttacker {
       return {
         swapProviderIndex: SwapProviderIndex.PancakeSwap,
         command: comandType,
-        path
+        path: constructPathData(route),
       }
     })
   }
 
+  filterPlans(plans: ArbitrageAttackerPlan[]) {
+    const { valid, invalid } = Object.groupBy(plans, plan => {
+      const lastRoute = plan.routes[plan.routes.length-1]
+      const lastToken: any = lastRoute.path[lastRoute.path.length-1]
+      return plan.routes[0].path[0].address === lastToken.address ? 'valid' : 'invalid'
+    })
+    if (invalid && invalid.length) {
+      for (const plan of invalid) {
+        console.log('invalid path', plan.routes.map(tradeRouteToString).join(' '))
+      }
+    }
+    return valid
+  }
+
   async attack(options: ArbitrageAttackerAttackOptions) {
-    const { plans } = options
+    const { plans: _plans } = options
+    const plans = this.filterPlans(_plans)
+    if (!plans || !plans.length) return
     // TODO: check if approve is required
     // TODO: or approve contract daily
     // const { request: req0 } = await this.chainClient.simulateContract({
@@ -124,14 +128,14 @@ export class ArbitrageAttacker {
     console.log('profitMin', ethers.formatUnits(profitMin, 'gwei'))
     let value = 0n
     const callDatas = plans.map(plan => {
-      plan.targetAmounts = this.getTargetAmounts(plan.routes[0].swapFrom)
+      plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
       plan.swaps = this.constructSwaps(plan)
-      if (plan.routes[0].swapFrom.address === wbnbAddress) value = this.balance - this.transactionCostReserve
+      if (plan.routes[0].path[0].address === wbnbAddress) value = this.balance - this.transactionCostReserve
       return encodeFunctionData({
         abi: universalArbitrageAbi,
         functionName: 'attack',
         args: [
-          plan.routes[0].swapFrom.address,
+          plan.routes[0].path[0].address,
           plan.targetAmounts[0],
           plan.swaps,
           profitMin,
@@ -157,7 +161,7 @@ export class ArbitrageAttacker {
     const plan = plans[planIndex]
     getFileLogger().log('plan found', amountGain, planToString(plan))
     let hasSuccessfulAttack = false
-    const swapFrom = plan.routes[0].swapFrom
+    const swapFrom = plan.routes[0].path[0]
     const maxPriorityFeePerGas = this.gasPrice // double the gas price
     const transactionCostReserve = this.maxGasLimit * (maxPriorityFeePerGas + this.gasPrice)
     value = swapFrom.address === bscTokens.wbnb.address ? this.balance - transactionCostReserve : 0n

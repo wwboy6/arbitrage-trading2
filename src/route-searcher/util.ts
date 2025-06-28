@@ -9,12 +9,7 @@ export const defaultAttackerPlan: ArbitrageAttackerPlan[] = [
       {
         swapProvider: SwapProviderIndex.PancakeSwap,
         type: PoolType.V3,
-        swapFrom: bscTokens.wbnb,
-        path: [
-          { swapTo: bscTokens.usdt, fee: 100 },
-          { swapTo: bscTokens.usd1, fee: 100 },
-          { swapTo: bscTokens.wbnb, fee: 500 },
-        ]
+        path: [bscTokens.wbnb, 100, bscTokens.usdt, 100, bscTokens.usd1, 500, bscTokens.wbnb]
       },
     ]
   },
