@@ -1,4 +1,7 @@
 const { expect } = require('chai')
+const chai = require('chai')
+chai.use(require('chai-bignumber')());
+
 const { ethers } = require('hardhat')
 
 const { bscTokens } = require('@pancakeswap/tokens')
@@ -495,9 +498,9 @@ describe('Universal Arbitrage', function () {
   })
   it('simulates batch call of attacks and check which one is profitable', async function () {
     const results = await abitrage.callAndReturnAnySuccess.staticCall([
-      // TODO: this one should fail
+      // this one should fail
       UniversalArbitrage.interface.encodeFunctionData(
-        "attack", // TODO: this call may not keep balance in contract, that would affect the second call
+        "attack",
         [
           swapFrom.address,
           ethers.parseEther("0.1"), // targetAmount
@@ -513,7 +516,25 @@ describe('Universal Arbitrage', function () {
           ]
         ]
       ),
-      // trade with 0.1 ethers. this one should success
+      // this one should success
+      UniversalArbitrage.interface.encodeFunctionData(
+        "attack",
+        [
+          swapFrom.address,
+          ethers.parseEther("0.1"), // targetAmount
+          [
+            {
+              swapProviderIndex: SwapProviderIndexPancakeSwap,
+              command: CommandType.V3_SWAP_EXACT_IN,
+              path: ethers.solidityPacked(
+                ["address", "uint24", "address", "uint24", "address", "uint24", "address"],
+                [swapFrom.address, swapPoolFee0, swapTo0.address, swapPoolFee1, swapTo1.address, swapPoolFeeLoopback, swapFrom.address],
+              ),
+            }
+          ]
+        ]
+      ),
+      // this one should be skipped
       UniversalArbitrage.interface.encodeFunctionData(
         "attack",
         [
@@ -532,6 +553,10 @@ describe('Universal Arbitrage', function () {
         ]
       ),
     ], {value: ethers.parseEther("0.1")})
-    console.log(results)
+    const [ index, success, returnData ] = results
+    const amountGain = ethers.AbiCoder.defaultAbiCoder().decode(["uint256"], returnData)
+    expect(index).equal(1)
+    expect(success).equal(true)
+    expect(amountGain.toString()).to.be.bignumber.greaterThan(0)
   })
 })

@@ -30,7 +30,7 @@ describe('Setup market', function () {
     // FIXME:
     const nonce = await ethers.provider.getTransactionCount(owner.address, "pending");
     console.log("Current Nonce:", nonce);
-    owner.nonce = nonce
+    owner.nonce = nonce + 1
 
     // await publicClient.request({
     //   method: "anvil_impersonateAccount",
