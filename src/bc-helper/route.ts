@@ -28,3 +28,10 @@ export type TradeRouteV3 = TradeRouteBase & {
 }
 
 export type TradeRoute = TradeRouteV2 | TradeRouteV3
+
+export function tradeRouteToString(route: TradeRoute) {
+  switch (route.type) {
+    case PoolType.V2: return `V2(${route.path.map(t => t.symbol).join('-')})`
+    case PoolType.V3: return `V3(${route.path.map(p => `${p.swapTo.symbol}[${p.fee}]`).join('-')})`
+  }
+}

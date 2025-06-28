@@ -6,12 +6,18 @@ import { getLocalChain, getPublicBscChain } from './bc-helper/chain'
 // import { findTokenWithSymbol } from './bc-helper/coin'
 import { setGlobalDispatcher, ProxyAgent } from "undici"
 import pThrottle from 'p-throttle'
+import pMemoize from 'p-memoize'
 import { ArbitrageAttacker, ArbitrageAttackerPlan } from './attacker'
+import { defaultAttackerPlan } from './route-searcher/util'
 import { SwapProviderIndex, TradeRoute } from './bc-helper/route'
 import { throttledHttp } from './bc-helper/throttled-http'
 import { privateKeyToAccount } from 'viem/accounts'
+import { setupFileLogger } from './lib/file-logger'
+import ExpiryMap from 'expiry-map'
 
 const { NODE_ENV, PROXY_URL, PRIVATE_KEY, ZAN_API_KEY, ARBITRAGE_CONTRACT_ADDRESS, PLAN_MAX, INTERVAL, PROFIT_THRESHOLD } = env
+
+setupFileLogger('./data/log.txt')
 
 if (PROXY_URL) {
   // FIXME: NO_PROXY
@@ -31,7 +37,7 @@ function setup () {
   const transport = throttledHttp(
     chain.rpcUrls.default.http[0],
     {
-      retryCount: Infinity, // FIXME:
+      retryCount: 3, // FIXME:
       retryDelay: 1 * 1000,
     } as any, // TODO:
     {
@@ -70,53 +76,34 @@ async function main () {
   const { chain, chainClient, account, attacker } = setup()
   console.log(`Using chain: ${chain.name}`)
   // variables
-  let plans: ArbitrageAttackerPlan[] = [
-    {
-      routes: [
-        {
-          swapProvider: SwapProviderIndex.PancakeSwap,
-          type: PoolType.V3,
-          swapFrom: bscTokens.wbnb,
-          path: [
-            {
-              swapTo: bscTokens.usdt,
-              fee: 100
-            },
-            {
-              swapTo: bscTokens.usd1,
-              fee: 100
-            },
-            {
-              swapTo: bscTokens.wbnb,
-              fee: 500
-            },
-          ]
-        },
-      ]
-    },
-  ]
+  let plans = defaultAttackerPlan
+  // TODO: verify plan: ending token should be the same as swap in
   
   // TODO: update gas config regularly
   const block = await chainClient.getBlock({ blockTag: 'latest' })
   const maxGasLimit = block.gasLimit
-  console.log('maxGasLimit', maxGasLimit)
-  // TODO: make a discount in case this would be changed
-  attacker.maxGasLimit = maxGasLimit * 9n / 10n
-  const gasPrice = await chainClient.getGasPrice()
-  console.log('gasPrice', gasPrice)
-  attacker.gasPrice = gasPrice
+  console.log('chain maxGasLimit', maxGasLimit)
+  attacker.balance = await chainClient.getBalance(account)
+
+  const getGasPrice = pMemoize(async () => {
+    const gasPrice = await chainClient.getGasPrice() 
+    console.log('gasPrice', gasPrice)
+    return gasPrice
+  }, {cache: new ExpiryMap(60000)})
 
   // loop with throttle
   const loop = pThrottle({
     limit: 1,
     interval: INTERVAL,
   })(async () => {
-    // TODO: update gas config regularly
+    // update gas config regularly
+    attacker.gasPrice = await getGasPrice()
     // TODO: update plans
     // attempt attack
-    await attacker.attack({
+    const planIndex = await attacker.attack({
       plans: plans.slice(0, PLAN_MAX)
     })
+    // TODO: repeat plans if planIndex >= 0
   })
   while (true) {
     await loop()

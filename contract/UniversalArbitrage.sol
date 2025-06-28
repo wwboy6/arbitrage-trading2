@@ -57,46 +57,79 @@ contract UniversalArbitrage is CallAndReturnAnySuccess {
     function attackWithAmounts(
         address tokenIn,
         uint256[] calldata attackAmounts,
-        SwapParams[] calldata swaps
-    ) onlyOwner external payable returns (uint256 amountGain) {
-        if (tokenIn == address(WBNB) && address(this).balance > 0) {
-            WBNB.deposit{value: address(this).balance}();
-        }
-        uint256 originalBalance = IERC20(tokenIn).balanceOf(address(this));
-        uint256 currentBalance = originalBalance;
+        SwapParams[] calldata swaps,
+        uint256 profitMin
+    ) onlyOwner external payable {
+        require(attackAmounts.length < type(uint8).max, "too many amounts");
+        require(swaps.length < type(uint8).max, "too many swaps");
+        // console.log("-------------- attackWithAmounts ---------------");
+        uint256 currentBalance = IERC20(tokenIn).balanceOf(address(this));
+        // if (tokenIn == address(WBNB) && address(this).balance > 0) {
+        //     WBNB.deposit{value: address(this).balance}();
+        // }
+        // uint256 originalBalance = IERC20(tokenIn).balanceOf(address(this));
+        // uint256 currentBalance = originalBalance;
         uint256 amountInAvailable = IERC20(tokenIn).balanceOf(msg.sender);
-        for (uint8 i = 0; i < attackAmounts.length; i++) {
+        uint8 i;
+        for (i = 0; i < attackAmounts.length;) {
             // console.log("-------------- new target amount ---------------");
             uint256 attackAmount = attackAmounts[i];
             // console.log(attackAmount);
+
+            // handle WBNB deposit with contract balance
+            if (
+                tokenIn == address(WBNB) &&
+                address(this).balance > 0 &&
+                attackAmount > currentBalance
+            ) {
+                if (attackAmount - currentBalance >= address(this).balance) {
+                    currentBalance += address(this).balance;
+                    WBNB.deposit{value: address(this).balance}();
+                } else {
+                    // console.log('too many value is transferred');
+                    // console.log(attackAmount - currentBalance);
+                    WBNB.deposit{value: attackAmount - currentBalance}();
+                    currentBalance = attackAmount;
+                }
+            }
+
             if (currentBalance > attackAmount) {
                 // note: cannot reduce currentBalance here as executeMultipleSwaps would use all current balance
+                // console.log("too many balance in the contract");
                 attackAmount = currentBalance;
             }
-            uint256 amountIn = amountInAvailable;
-            if (amountIn > attackAmount - currentBalance) amountIn = attackAmount - currentBalance;
+
+            uint256 amountIn;
+            if (amountInAvailable > attackAmount - currentBalance) amountIn = attackAmount - currentBalance;
+            else amountIn = amountInAvailable;
             if (amountIn > 0) {
-                // transfer all balance to this contract. not using amountIn in executeMultipleSwaps
+                // transfer required balance to this contract. not using amountIn in executeMultipleSwaps
                 IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
                 currentBalance += amountIn;
                 amountInAvailable -= amountIn;
             }
+
             (bool success, bytes memory result) = address(this).call(
                 abi.encodeWithSelector(
                     this.loanOrPerformAttack.selector,
                     tokenIn,
                     attackAmount,
                     currentBalance,
-                    swaps
+                    swaps,
+                    0 // accept the profit no matter what
                 )
             );
             if (!success) {
-                // console.log("stop looping");
+                // console.log("fail");
                 break;
             }
+            if (abi.decode(result, (uint256)) - currentBalance < profitMin) break; // stop if the profit is too low to try next level
             currentBalance = abi.decode(result, (uint256));
+            unchecked { ++i; }
         }
-        if (currentBalance <= originalBalance) revert("not forfitable");
+        if (i == 0) revert("not forfitable");
+        // console.log("stop looping");
+        // console.log(currentBalance);
         if (tokenIn == address(WBNB)) {
             WBNB.withdraw(currentBalance);
             payable(msg.sender).transfer(currentBalance);
@@ -106,23 +139,37 @@ contract UniversalArbitrage is CallAndReturnAnySuccess {
                 currentBalance
             );
         }
-        amountGain = currentBalance - originalBalance;
     }
 
     function attack(
         address tokenIn,
         uint256 attackAmount,
-        SwapParams[] calldata swaps
-    ) onlyOwner external payable returns (uint256 amountGain) {
+        SwapParams[] calldata swaps,
+        uint256 profitMin
+    ) onlyOwner external payable returns (uint256) {
         // console.log("------------------ attack --------------------");
         // console.log("attackAmount");
         // console.log(attackAmount);
 
-        if (tokenIn == address(WBNB) && address(this).balance > 0) {
-            WBNB.deposit{value: address(this).balance}();
+        uint256 currentBalance = IERC20(tokenIn).balanceOf(address(this));
+
+        // handle WBNB deposit with contract balance
+        if (
+            tokenIn == address(WBNB) &&
+            address(this).balance > 0 &&
+            attackAmount > currentBalance
+        ) {
+            if (attackAmount - currentBalance >= address(this).balance) {
+                currentBalance += address(this).balance;
+                WBNB.deposit{value: address(this).balance}();
+            } else {
+                // console.log('too many value is transferred');
+                // console.log(attackAmount - currentBalance);
+                WBNB.deposit{value: attackAmount - currentBalance}();
+                currentBalance = attackAmount;
+            }
         }
 
-        uint256 currentBalance = IERC20(tokenIn).balanceOf(address(this));
         // console.log("currentBalance");
         // console.log(currentBalance);
 
@@ -148,32 +195,38 @@ contract UniversalArbitrage is CallAndReturnAnySuccess {
             tokenIn,
             attackAmount,
             currentBalance,
-            swaps
+            swaps,
+            profitMin
         );
 
         if (tokenIn == address(WBNB)) {
             WBNB.withdraw(amountOut);
-            payable(msg.sender).transfer(amountOut);
         } else {
             IERC20(tokenIn).transfer(
                 msg.sender,
                 amountOut
             );
         }
+        if (address(this).balance > 0) {
+            // transfer amount out and excess balance
+            payable(msg.sender).transfer(address(this).balance);
+        }
 
-        amountGain = amountOut - currentBalance;
+        return amountOut - currentBalance;
     }
 
     function loanOrPerformAttack(
         address tokenIn,
         uint256 attackAmount,
         uint256 currentBalance,
-        SwapParams[] calldata swaps
+        SwapParams[] calldata swaps,
+        uint256 profitMin
     ) public returns (uint256 amountOut) {
         // if (msg.sender != owner() && msg.sender != address(this)) revert("access denied");
         if (_msgSender() != owner() && _msgSender() != address(this)) revert OwnableUnauthorizedAccount(_msgSender());
         if (attackAmount > currentBalance) {
             // console.log("get loan");
+            // console.log(attackAmount - currentBalance);
             address pool = loanPoolProvider.getPool();
             // console.log("pool");
             // console.log(pool);
@@ -195,8 +248,9 @@ contract UniversalArbitrage is CallAndReturnAnySuccess {
         // console.log("balance after swap");
         // console.log(amountOut);
         // console.log(currentBalance);
+        // console.log(profitMin);
         
-        require(amountOut > currentBalance, "not profitible");
+        require(amountOut - currentBalance >= profitMin, "not profitable");
 
         // console.log("attack success");
         emit AttackPerformed(tokenIn, currentBalance, attackAmount, amountOut);
@@ -265,6 +319,7 @@ contract UniversalArbitrage is CallAndReturnAnySuccess {
         uint256 amountIn,
         SwapParams[] calldata swaps
     ) public onlyOwner {
+        require(swaps.length < type(uint8).max, "too many swaps");
         _executeMultipleSwaps(tokenIn, amountIn, swaps);
     }
 
