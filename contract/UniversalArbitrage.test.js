@@ -42,7 +42,7 @@ describe('Universal Arbitrage', function () {
 
   const swapPoolFeeBack = 100
 
-  let owner, addr1, UniversalArbitrage, abitrage, abitrageAddress
+  let owner, addr1, UniversalArbitrage, arbitrage, arbitrageAddress
   let swapFromContract
   let swapTo0Contract
   let v2SwapTo0Contract
@@ -67,20 +67,20 @@ describe('Universal Arbitrage', function () {
   })
   it('deploys contract', async function () {
     UniversalArbitrage = await ethers.getContractFactory('UniversalArbitrage')
-    abitrage = (await UniversalArbitrage.deploy(
+    arbitrage = (await UniversalArbitrage.deploy(
       pancakeswapUniversalRouter,
       uniswapUniversalRouter,
       loanPoolProvider,
       bscTokens.wbnb.address,
     )).connect(owner)
-    abitrageAddress = await abitrage.getAddress()
+    arbitrageAddress = await arbitrage.getAddress()
   })
   it('funds tokens', async function () {
     const [owner, addr1] = await ethers.getSigners()
-    await ethers.provider.send('anvil_setBalance', [
-      addr1.address,
-      '0x10000000000000000000000'
-    ])
+    // await ethers.provider.send('anvil_setBalance', [
+    //   addr1.address,
+    //   '0x10000000000000000000000'
+    // ])
     let balance = await swapFromContract.balanceOf(owner.address)
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
     if (bnbBalance0 < ethers.parseEther('7')) {
@@ -102,16 +102,16 @@ describe('Universal Arbitrage', function () {
     expect(balance).greaterThan(ethers.parseEther('2'))
   })
   it('approve contract', async function () {
-    await swapFromContract.approve(abitrageAddress, ethers.MaxUint256)
+    await swapFromContract.approve(arbitrageAddress, ethers.MaxUint256)
   })
   xit('performs 1 simple pancake swaps', async function () {
     // clear contract balance
-    let amount = swapTo0Contract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapTo0.address, amount)
+    let amount = swapTo0Contract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    await abitrage.executeMultipleSwaps(
+    await arbitrage.executeMultipleSwaps(
       swapFrom.address,
       swapInAmount,
       [
@@ -127,19 +127,19 @@ describe('Universal Arbitrage', function () {
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     expect(balance0 - balance1).equal(swapInAmount)
-    amount = await swapTo0Contract.balanceOf(abitrageAddress)
+    amount = await swapTo0Contract.balanceOf(arbitrageAddress)
     expect(amount).greaterThan(0)
     console.log(amount)
-    await abitrage.withdrawTokens(swapTo0.address, amount)
+    await arbitrage.withdrawTokens(swapTo0.address, amount)
   })
   xit('performs 1 simple uni swaps', async function () {
     // clear contract balance
-    let amount = swapTo0Contract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapTo0.address, amount)
+    let amount = swapTo0Contract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    await abitrage.executeMultipleSwaps(
+    await arbitrage.executeMultipleSwaps(
       swapFrom.address,
       swapInAmount,
       [
@@ -155,19 +155,19 @@ describe('Universal Arbitrage', function () {
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     expect(balance0 - balance1).equal(swapInAmount)
-    amount = await swapTo0Contract.balanceOf(abitrageAddress)
+    amount = await swapTo0Contract.balanceOf(arbitrageAddress)
     expect(amount).greaterThan(0)
     console.log(amount)
-    await abitrage.withdrawTokens(swapTo0.address, amount)
+    await arbitrage.withdrawTokens(swapTo0.address, amount)
   })
   xit('performs complex swaps', async function () {
     // clear contract balance
-    let amount = swapFromContract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    let amount = swapFromContract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    await abitrage.executeMultipleSwaps(
+    await arbitrage.executeMultipleSwaps(
       swapFrom.address,
       swapInAmount,
       [
@@ -191,20 +191,20 @@ describe('Universal Arbitrage', function () {
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
     console.log(balance0 - balance1)
-    amount = await swapFromContract.balanceOf(abitrageAddress)
+    amount = await swapFromContract.balanceOf(arbitrageAddress)
     console.log(amount)
     expect(balance0 - balance1).equal(swapInAmount)
     expect(amount).greaterThan(0)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
   })
   xit('performs loopback pancake swaps', async function () {
     // clear contract balance
-    let amount = swapFromContract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    let amount = swapFromContract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    await abitrage.executeMultipleSwaps(
+    await arbitrage.executeMultipleSwaps(
       swapFrom.address,
       swapInAmount,
       [
@@ -219,20 +219,20 @@ describe('Universal Arbitrage', function () {
       ],
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
-    amount = await swapFromContract.balanceOf(abitrageAddress)
+    amount = await swapFromContract.balanceOf(arbitrageAddress)
     expect(balance0 - balance1).equal(swapInAmount)
     expect(amount).greaterThan(0)
     console.log(amount)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
   })
   xit('performs simple v2 pancake swaps', async function () {
     // clear contract balance
-    let amount = v2SwapTo0Contract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(v2SwapTo0.address, amount)
+    let amount = v2SwapTo0Contract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(v2SwapTo0.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    await abitrage.executeMultipleSwaps(
+    await arbitrage.executeMultipleSwaps(
       swapFrom.address,
       swapInAmount,
       [
@@ -244,20 +244,20 @@ describe('Universal Arbitrage', function () {
       ],
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
-    amount = await v2SwapTo0Contract.balanceOf(abitrageAddress)
+    amount = await v2SwapTo0Contract.balanceOf(arbitrageAddress)
     expect(balance0 - balance1).equal(swapInAmount)
     expect(amount).greaterThan(0)
     console.log(amount)
-    await abitrage.withdrawTokens(v2SwapTo0.address, amount)
+    await arbitrage.withdrawTokens(v2SwapTo0.address, amount)
   })
   xit('performs v3 - v2 - v3 pancake swaps', async function () {
     // clear contract balance
-    let amount = swapFromContract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    let amount = swapFromContract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    await abitrage.executeMultipleSwaps(
+    await arbitrage.executeMultipleSwaps(
       swapFrom.address,
       swapInAmount,
       [
@@ -285,20 +285,20 @@ describe('Universal Arbitrage', function () {
       ],
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
-    amount = await swapFromContract.balanceOf(abitrageAddress)
+    amount = await swapFromContract.balanceOf(arbitrageAddress)
     expect(balance0 - balance1).equal(swapInAmount)
     expect(amount).greaterThan(0)
     console.log(amount)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
   })
   xit('performs v3 - v2 - v3 uni swaps', async function () {
     // clear contract balance
-    let amount = swapFromContract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    let amount = swapFromContract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
-    await abitrage.executeMultipleSwaps(
+    await arbitrage.executeMultipleSwaps(
       swapFrom.address,
       swapInAmount,
       [
@@ -326,21 +326,21 @@ describe('Universal Arbitrage', function () {
       ],
     )
     const balance1 = await swapFromContract.balanceOf(owner.address)
-    amount = await swapFromContract.balanceOf(abitrageAddress)
+    amount = await swapFromContract.balanceOf(arbitrageAddress)
     expect(balance0 - balance1).equal(swapInAmount)
     expect(amount).greaterThan(0)
     console.log(amount)
-    await abitrage.withdrawTokens(swapFrom.address, amount)
+    await arbitrage.withdrawTokens(swapFrom.address, amount)
   })
   xit('performs attack with bnb only', async function () {
     // clear contract balance
-    await abitrage.withdrawBalance()
+    await arbitrage.withdrawBalance()
     //
     const balance0 = await swapFromContract.balanceOf(owner.address)
     const bnbBalance0 = await ethers.provider.getBalance(owner.address)
     const swapInAmount = ethers.parseEther('0.1')
     const profitMin = ethers.parseUnits('200000', 'gwei')
-    await abitrage.attack(
+    await arbitrage.attack(
       swapFrom.address,
       swapInAmount,
       [
@@ -369,9 +369,27 @@ describe('Universal Arbitrage', function () {
     console.log('balanceGain', balanceGain)
     expect(balanceGain).greaterThan(0)
   })
+  it('simulate swap', async function () {
+    await arbitrage.executeMultipleSwaps.staticCall(
+      bscTokens.wbnb.address,
+      ethers.parseEther('0.1'),
+      [
+        {
+          swapProviderIndex: SwapProviderIndexPancakeSwap,
+          command: CommandType.V2_SWAP_EXACT_IN,
+          path: ethers.AbiCoder.defaultAbiCoder().encode(['address[]'], [[bscTokens.wbnb.address, bscTokens.usdt.address]])
+        },
+        {
+          swapProviderIndex: SwapProviderIndexUniSwap,
+          command: CommandType.V3_SWAP_EXACT_IN,
+          path: ethers.solidityPacked(['address', 'uint24', 'address'], [bscTokens.usdt.address, 100, bscTokens.wbnb.address])
+        },
+      ]
+    )
+  })
   xit('simulate attack with too many value transferred', async function () {
     const profitMin = ethers.parseUnits('200000', 'gwei')
-    const result = await abitrage.attack.staticCall(
+    const result = await arbitrage.attack.staticCall(
       swapFrom.address,
       ethers.parseEther('0.1'),
       [
@@ -394,9 +412,9 @@ describe('Universal Arbitrage', function () {
   })
   xit('performs attack with flash loan', async function () {
     // clear contract balance
-    await abitrage.withdrawBalance()
-    const temp = await swapFromContract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapFrom.address, temp)
+    await arbitrage.withdrawBalance()
+    const temp = await swapFromContract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapFrom.address, temp)
     // keep no wbnb and use bnb only
     let balance0 = await swapFromContract.balanceOf(owner.address)
     await swapFromContract.connect(owner).withdraw(balance0)
@@ -407,7 +425,7 @@ describe('Universal Arbitrage', function () {
     const profitMin = ethers.parseUnits('200000', 'gwei')
     //
     try {
-      await abitrage.attack(
+      await arbitrage.attack(
         swapFrom.address,
         targetAmount,
         [
@@ -463,9 +481,9 @@ describe('Universal Arbitrage', function () {
   })
   xit('performs profitable attack with attackWithAmounts and flash loan', async function () {
     // clear contract balance
-    await abitrage.withdrawBalance()
-    const temp = await swapFromContract.balanceOf(abitrageAddress)
-    await abitrage.withdrawTokens(swapFrom.address, temp)
+    await arbitrage.withdrawBalance()
+    const temp = await swapFromContract.balanceOf(arbitrageAddress)
+    await arbitrage.withdrawTokens(swapFrom.address, temp)
     // keep no wbnb and use bnb only
     let balance0 = await swapFromContract.balanceOf(owner.address)
     await swapFromContract.connect(owner).withdraw(balance0)
@@ -479,7 +497,7 @@ describe('Universal Arbitrage', function () {
     ]
     const profitMin = ethers.parseUnits('200000', 'gwei')
     //
-    const tx = await abitrage.attackWithAmounts(
+    const tx = await arbitrage.attackWithAmounts(
       swapFrom.address,
       targetAmounts,
       [
@@ -529,7 +547,7 @@ describe('Universal Arbitrage', function () {
   })
   xit('simulates batch call of attacks and check which one is profitable', async function () {
     const profitMin = ethers.parseUnits('200000', 'gwei')
-    const results = await abitrage.callAndReturnAnySuccess.staticCall([
+    const results = await arbitrage.callAndReturnAnySuccess.staticCall([
       // this one should fail
       UniversalArbitrage.interface.encodeFunctionData(
         'attack',
