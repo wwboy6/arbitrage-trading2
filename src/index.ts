@@ -96,14 +96,18 @@ async function main () {
     limit: 1,
     interval: INTERVAL,
   })(async () => {
-    // update gas config regularly
-    attacker.gasPrice = await getGasPrice()
-    // TODO: update plans
-    // attempt attack
-    const planIndex = await attacker.attack({
-      plans: plans.slice(0, PLAN_MAX)
-    })
-    // TODO: repeat plans if planIndex >= 0
+    try {
+      // update gas config regularly
+      attacker.gasPrice = await getGasPrice()
+      // TODO: update plans
+      // attempt attack
+      const planIndex = await attacker.attack({
+        plans: plans.slice(0, PLAN_MAX)
+      })
+      // TODO: repeat plans if planIndex >= 0
+    } catch (e: any) {
+      console.error(e)
+    }
   })
   while (true) {
     await loop()

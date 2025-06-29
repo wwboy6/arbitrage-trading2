@@ -60,19 +60,13 @@ export class ArbitrageAttacker {
 
   getTargetAmounts(token: Token) {
     // TODO: config different amount scales for different swapFrom
-    // TODO: gas for 2 amounts: 932595n
-    // TODO: gas limit is about: 
-    // return [
-    //   parseEther('1'),
-    //   parseEther('4'),
-    //   parseEther('16'),
-    //   parseEther('64'),
-    //   parseEther('256'),
-    //   parseEther('1024'),
-    // ]
     return [
-      parseEther('0.1'),
+      parseEther('1'),
+      parseEther('4'),
       parseEther('16'),
+      parseEther('64'),
+      parseEther('256'),
+      parseEther('1024'),
     ]
   }
 
@@ -154,7 +148,33 @@ export class ArbitrageAttacker {
     })
     console.timeEnd("callAndReturnAnySuccess")
     const {index: planIndex, success, returnData} = result.result as any
-    if (planIndex >= plans.length || !success) return -1
+    if (planIndex >= plans.length || !success) {
+      if (value) {
+        // TODO: test with enough eth
+        const amount = this.getTargetAmounts(bscTokens.wbnb)[0]
+        const result = await this.chainClient.simulateContract({
+          address: this.universalArbitrageAddress,
+          abi: universalArbitrageAbi,
+          functionName: 'callAndReturnAnySuccess',
+          args: [callDatas],
+          account: this.account,
+          value: amount,
+          // TODO: use stateOverride to let contract know it is a simulation
+          stateOverride: [
+            {
+              address: this.account.address,
+              balance: amount * 2n
+            }
+          ]
+        })
+        if ((result.result as any).success) {
+          const {index: planIndex, success, returnData} = result.result as any
+          const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
+          await getFileLogger().log('plan found with enough eth', planIndex, amountGain)
+        }
+      }
+      return -1
+    }
     console.log('plan found', planIndex)
     const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
     console.log('amountGain', ethers.formatUnits(amountGain, 'gwei'))
@@ -197,9 +217,11 @@ export class ArbitrageAttacker {
         // TODO: check error
         console.log(e.message)
         console.log('attack failed')
+        // TODO: use another client with less retry and delay
         this.balance = await this.chainClient.getBalance(this.account)
         getFileLogger().log('attack failed')
           .then(() => getFileLogger().log('balance', this.balance, this.balance - originalBalance))
+        // TODO: cancel transection
         // break
       }
     // }
