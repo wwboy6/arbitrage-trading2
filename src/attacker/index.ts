@@ -151,26 +151,28 @@ export class ArbitrageAttacker {
     if (planIndex >= plans.length || !success) {
       if (value) {
         // TODO: test with enough eth
-        const amount = this.getTargetAmounts(bscTokens.wbnb)[0]
-        const result = await this.chainClient.simulateContract({
-          address: this.universalArbitrageAddress,
-          abi: universalArbitrageAbi,
-          functionName: 'callAndReturnAnySuccess',
-          args: [callDatas],
-          account: this.account,
-          value: amount,
-          // TODO: use stateOverride to let contract know it is a simulation
-          stateOverride: [
-            {
-              address: this.account.address,
-              balance: amount * 2n
-            }
-          ]
-        })
-        if ((result.result as any).success) {
-          const {index: planIndex, success, returnData} = result.result as any
-          const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
-          await getFileLogger().log('plan found with enough eth', planIndex, amountGain)
+        for (const amountStr of ['1', '2', '3', '4', '5']) {
+          const amount = ethers.parseEther(amountStr)
+          const result = await this.chainClient.simulateContract({
+            address: this.universalArbitrageAddress,
+            abi: universalArbitrageAbi,
+            functionName: 'callAndReturnAnySuccess',
+            args: [callDatas],
+            account: this.account,
+            value: amount,
+            // TODO: use stateOverride to let contract know it is a simulation
+            stateOverride: [
+              {
+                address: this.account.address,
+                balance: amount + ethers.parseEther('1') // enough amount to pay value + gas
+              }
+            ]
+          })
+          if ((result.result as any).success) {
+            const {index: planIndex, success, returnData} = result.result as any
+            const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
+            await getFileLogger().log('plan found with enough eth', amountStr, planIndex, amountGain)
+          }
         }
       }
       return -1
