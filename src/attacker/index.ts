@@ -153,7 +153,7 @@ export class ArbitrageAttacker {
         // TODO: test with enough eth
         // do these tests in same block
         const blockNumber = await this.chainClient.getBlockNumber()
-        for (const amountStr of ['6', '9', '12', '18', '24', '36']) {
+        for (const amountStr of ['1', '6', '9', '12', '18', '24']) {
           const amount = ethers.parseEther(amountStr)
           const callDatas = plans.map(plan => {
             plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
