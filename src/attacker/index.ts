@@ -8,6 +8,7 @@ import { bigIntMin } from '../lib/bigint'
 import { AbiCoder, ethers, solidityPacked } from 'ethers'
 import { CommandType } from '../bc-helper/universal-router'
 import { getFileLogger } from '../lib/file-logger'
+import { printGwei } from '../bc-helper/wei'
 
 export type ArbitrageAttackerOptions = {
   chainClient: PublicClient,
@@ -151,9 +152,27 @@ export class ArbitrageAttacker {
     if (planIndex >= plans.length || !success) {
       if (value) {
         // TODO: test with enough eth
+        // do theses test in same block
+        const blockNumber = await this.chainClient.getBlockNumber()
         for (const amountStr of ['1', '2', '3', '4', '5']) {
           const amount = ethers.parseEther(amountStr)
+          const callDatas = plans.map(plan => {
+            plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
+            plan.swaps = this.constructSwaps(plan)
+            if (plan.routes[0].path[0].address === wbnbAddress) value = this.balance - this.transactionCostReserve
+            return encodeFunctionData({
+              abi: universalArbitrageAbi,
+              functionName: 'attack',
+              args: [
+                plan.routes[0].path[0].address,
+                amount,
+                plan.swaps,
+                profitMin,
+              ]
+            })
+          })
           const result = await this.chainClient.simulateContract({
+            blockNumber,
             address: this.universalArbitrageAddress,
             abi: universalArbitrageAbi,
             functionName: 'callAndReturnAnySuccess',
@@ -171,7 +190,7 @@ export class ArbitrageAttacker {
           if ((result.result as any).success) {
             const {index: planIndex, success, returnData} = result.result as any
             const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
-            await getFileLogger().log('plan found with enough eth', amountStr, planIndex, amountGain)
+            await getFileLogger().log('plan found with enough eth', amountStr, planIndex, printGwei(amountGain))
           }
         }
       }
