@@ -1,2 +1,6 @@
 2025-06-30_15-04-33 plan found with enough eth 1 61145775976374
 2025-06-30_15-36-51 plan found with enough eth 1 256144054303781
+2025-07-01_23-07-39 plan found with enough eth 5 1 246166610667053
+2025-07-02_02-58-54 plan found with enough eth 3 1 37051069966425
+2025-07-02_06-59-26 plan found with enough eth 4 1 108827751086063
+2025-07-02_07-05-02 plan found with enough eth 4 1 66320105441190
