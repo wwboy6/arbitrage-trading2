@@ -1,4 +1,4 @@
-import { Chain, PublicClient, createPublicClient, createWalletClient } from 'viem'
+import { Chain, PublicClient, createPublicClient, createWalletClient, webSocket } from 'viem'
 import env from './env'
 import { bscTokens } from '@pancakeswap/tokens'
 import { PoolType } from '@pancakeswap/smart-router'
@@ -8,7 +8,8 @@ import { setGlobalDispatcher, ProxyAgent } from "undici"
 import pThrottle from 'p-throttle'
 import pMemoize from 'p-memoize'
 import { ArbitrageAttacker, ArbitrageAttackerPlan } from './attacker'
-import { defaultAttackerPlan } from './route-searcher/util'
+import { AttackPlanner } from './attack-planner'
+import { defaultAttackerPlans } from './attack-planner/util'
 import { SwapProviderIndex, TradeRoute } from './bc-helper/route'
 import { throttledHttp } from './bc-helper/throttled-http'
 import { privateKeyToAccount } from 'viem/accounts'
@@ -54,6 +55,10 @@ function setup () {
       }
     },
   })
+  const wssChainClient: PublicClient = createPublicClient({
+    chain,
+    transport: webSocket(),
+  })
   const account = privateKeyToAccount(PRIVATE_KEY)
   const walletClient = createWalletClient({
     account,
@@ -66,17 +71,20 @@ function setup () {
     universalArbitrageAddress: ARBITRAGE_CONTRACT_ADDRESS,
     walletClient,
   })
-  return { chain, chainClient, account, attacker }
+  const attackPlanner = new AttackPlanner({
+    wssChainClient,
+  })
+  return { chain, chainClient, account, attacker, attackPlanner }
 }
 
 async function main () {
   console.log('==== Blockchain Arbitrage Trading Bot ====')
   console.log(`NODE_ENV: ${NODE_ENV}`)
   // const
-  const { chain, chainClient, account, attacker } = setup()
+  const { chain, chainClient, account, attacker, attackPlanner } = setup()
   console.log(`Using chain: ${chain.name}`)
   // variables
-  let plans = defaultAttackerPlan
+  let plans = defaultAttackerPlans
   // TODO: verify plan: ending token should be the same as swap in
   
   // TODO: update gas config regularly
@@ -99,7 +107,7 @@ async function main () {
     try {
       // update gas config regularly
       attacker.gasPrice = await getGasPrice()
-      // TODO: update plans
+      // TODO: update plans by attackPlanner
       // attempt attack
       const planIndex = await attacker.attack({
         plans: plans.slice(0, PLAN_MAX)

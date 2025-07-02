@@ -5,6 +5,7 @@ export const getPublicBscChain = (ZAN_API_KEY: string) => ({
   rpcUrls: {
     default: {
       http: [`https://api.zan.top/node/v1/bsc/mainnet/${ZAN_API_KEY}`],
+      webSocket: [`wss://api.zan.top/node/ws/v1/bsc/mainnet/${ZAN_API_KEY}`]
     },
   },
 })

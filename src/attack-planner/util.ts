@@ -1,7 +1,7 @@
-import { PoolType } from "@pancakeswap/smart-router";
-import { ArbitrageAttackerPlan } from "../attacker";
-import { SwapProviderIndex, TradeRoute } from "../bc-helper/route";
-import { bscTokens } from "@pancakeswap/tokens";
+import { PoolType } from "@pancakeswap/smart-router"
+import { ArbitrageAttackerPlan } from "../attacker"
+import { SwapProviderIndex, TradeRoute } from "../bc-helper/route"
+import { bscTokens } from "../bc-helper/token"
 
 function buildRouteFowardAndReverse(plan: ArbitrageAttackerPlan): ArbitrageAttackerPlan[] {
   return [
@@ -13,7 +13,92 @@ function buildRouteFowardAndReverse(plan: ArbitrageAttackerPlan): ArbitrageAttac
   ]
 }
 
-export const defaultAttackerPlan: ArbitrageAttackerPlan[] = [
+export const defaultAttackerPlans: ArbitrageAttackerPlan[] = [
+  // -----------------------------------------------------
+  // construct route w.r.t. pools of high tx
+  // p 100 usdt 500
+  ...buildRouteFowardAndReverse({
+    routes: [
+      {
+        swapProvider: SwapProviderIndex.PancakeSwap,
+        type: PoolType.V3,
+        path: [bscTokens.wbnb, 100, bscTokens.usdt, 500, bscTokens.wbnb]
+      },
+    ]
+  }),
+  // p 100 usdt u 100
+  ...buildRouteFowardAndReverse({
+    routes: [
+      {
+        swapProvider: SwapProviderIndex.PancakeSwap,
+        type: PoolType.V3,
+        path: [bscTokens.wbnb, 100, bscTokens.usdt]
+      },
+      {
+        swapProvider: SwapProviderIndex.Uniswap,
+        type: PoolType.V3,
+        path: [bscTokens.usdt, 100, bscTokens.wbnb]
+      },
+    ]
+  }),
+  // p 100 usdt 100 zk 100
+  ...buildRouteFowardAndReverse({
+    routes: [
+      {
+        swapProvider: SwapProviderIndex.PancakeSwap,
+        type: PoolType.V3,
+        path: [bscTokens.wbnb, 100, bscTokens.usdt, 100, bscTokens.zk, 100, bscTokens.wbnb]
+      },
+    ]
+  }),
+  // p 500 usdt 100 zk 100
+  ...buildRouteFowardAndReverse({
+    routes: [
+      {
+        swapProvider: SwapProviderIndex.PancakeSwap,
+        type: PoolType.V3,
+        path: [bscTokens.wbnb, 500, bscTokens.usdt, 100, bscTokens.zk, 100, bscTokens.wbnb]
+      },
+    ]
+  }),
+  // u 100 usdt p 100 zk 100
+  ...buildRouteFowardAndReverse({
+    routes: [
+      {
+        swapProvider: SwapProviderIndex.Uniswap,
+        type: PoolType.V3,
+        path: [bscTokens.wbnb, 100, bscTokens.usdt]
+      },
+      {
+        swapProvider: SwapProviderIndex.PancakeSwap,
+        type: PoolType.V3,
+        path: [bscTokens.usdt, 100, bscTokens.zk, 100, bscTokens.wbnb]
+      },
+    ]
+  }),
+  // TODO: study why usdc need more time
+  // // p 100 usdt 100 usdc 100
+  // ...buildRouteFowardAndReverse({
+  //   routes: [
+  //     {
+  //       swapProvider: SwapProviderIndex.PancakeSwap,
+  //       type: PoolType.V3,
+  //       path: [bscTokens.wbnb, 100, bscTokens.usdt, 100, bscTokens.usdc, 100, bscTokens.wbnb]
+  //     },
+  //   ]
+  // }),
+  // // p 500 usdt 100 usdc 100
+  // ...buildRouteFowardAndReverse({
+  //   routes: [
+  //     {
+  //       swapProvider: SwapProviderIndex.PancakeSwap,
+  //       type: PoolType.V3,
+  //       path: [bscTokens.wbnb, 500, bscTokens.usdt, 100, bscTokens.usdc, 100, bscTokens.wbnb]
+  //     },
+  //   ]
+  // }),
+  // -----------------------------------------------------
+  // 100 usdt 100 usd1 500
   ...buildRouteFowardAndReverse({
     routes: [
       {
@@ -23,6 +108,8 @@ export const defaultAttackerPlan: ArbitrageAttackerPlan[] = [
       }
     ]
   }),
+  /*
+  // 100 usdt 100 usd1 100
   ...buildRouteFowardAndReverse({
     routes: [
       {
@@ -172,6 +259,8 @@ export const defaultAttackerPlan: ArbitrageAttackerPlan[] = [
       },
     ]
   }),
+  */
 ]
 
-console.log(defaultAttackerPlan)
+console.log(defaultAttackerPlans)
+

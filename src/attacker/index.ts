@@ -189,13 +189,13 @@ export class ArbitrageAttacker {
           if ((result.result as any).success) {
             const {index: planIndex, success, returnData} = result.result as any
             const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
-            await getFileLogger().log('plan found with enough eth block:', blockNumber, ' amount:', amountStr, ' plan:', planIndex, printGwei(amountGain))
+            await getFileLogger().log('plan found with enough eth block:', blockNumber, ' amount:', amountStr, printGwei(amountGain), planToString(plans[planIndex]))
           }
         }
       }
       return -1
     }
-    console.log('plan found', planIndex)
+    console.log('plan found', planToString(plans[planIndex]))
     const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
     console.log('amountGain', printGwei(amountGain))
     const plan = plans[planIndex]
