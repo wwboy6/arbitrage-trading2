@@ -62,12 +62,11 @@ export class ArbitrageAttacker {
   getTargetAmounts(token: Token) {
     // TODO: config different amount scales for different swapFrom
     return [
-      parseEther('1'),
-      parseEther('4'),
-      parseEther('16'),
-      parseEther('64'),
-      parseEther('256'),
-      parseEther('1024'),
+      parseEther('5'),
+      parseEther('20'),
+      parseEther('80'),
+      parseEther('320'),
+      parseEther('1280'),
     ]
   }
 
@@ -154,7 +153,7 @@ export class ArbitrageAttacker {
         // TODO: test with enough eth
         // do these tests in same block
         const blockNumber = await this.chainClient.getBlockNumber()
-        for (const amountStr of ['1', '2', '3', '4', '5']) {
+        for (const amountStr of ['6', '9', '12', '18', '24', '36']) {
           const amount = ethers.parseEther(amountStr)
           const callDatas = plans.map(plan => {
             plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
@@ -198,9 +197,9 @@ export class ArbitrageAttacker {
     }
     console.log('plan found', planIndex)
     const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
-    console.log('amountGain', ethers.formatUnits(amountGain, 'gwei'))
+    console.log('amountGain', printGwei(amountGain))
     const plan = plans[planIndex]
-    getFileLogger().log('plan found', amountGain, planToString(plan))
+    getFileLogger().log('plan found', planIndex, printGwei(amountGain), planToString(plan))
     let hasSuccessfulAttack = false
     const swapFrom = plan.routes[0].path[0]
     const maxPriorityFeePerGas = this.gasPrice // double the gas price

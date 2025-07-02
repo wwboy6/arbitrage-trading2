@@ -12,7 +12,7 @@ import { defaultAttackerPlan } from './route-searcher/util'
 import { SwapProviderIndex, TradeRoute } from './bc-helper/route'
 import { throttledHttp } from './bc-helper/throttled-http'
 import { privateKeyToAccount } from 'viem/accounts'
-import { setupFileLogger } from './lib/file-logger'
+import { getFileLogger, setupFileLogger } from './lib/file-logger'
 import ExpiryMap from 'expiry-map'
 
 const { NODE_ENV, PROXY_URL, PRIVATE_KEY, ZAN_API_KEY, ARBITRAGE_CONTRACT_ADDRESS, PLAN_MAX, INTERVAL, PROFIT_THRESHOLD } = env
@@ -107,6 +107,7 @@ async function main () {
       // TODO: repeat plans if planIndex >= 0
     } catch (e: any) {
       console.error(e)
+      getFileLogger().log('error:', e.message)
     }
   })
   while (true) {

@@ -7,3 +7,8 @@
 2025-07-02_09-17-41 plan found with enough eth 1 1 35,960gwei
 2025-07-02_09-17-41 plan found with enough eth 1 1 97,898gwei
 2025-07-02_09-17-43 plan found with enough eth 1 1 150,910gwei
+2025-07-02_14-58-28 plan found with enough eth block: 52588955  amount: 1  plan: 0 101,788 gwei
+2025-07-02_14-58-28 plan found with enough eth block: 52588955  amount: 2  plan: 0 180,383 gwei
+2025-07-02_14-58-28 plan found with enough eth block: 52588955  amount: 3  plan: 0 235,786 gwei
+2025-07-02_14-58-28 plan found with enough eth block: 52588955  amount: 4  plan: 0 267,997 gwei
+2025-07-02_14-58-28 plan found with enough eth block: 52588955  amount: 5  plan: 0 277,017 gwei
