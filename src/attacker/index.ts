@@ -152,7 +152,7 @@ export class ArbitrageAttacker {
     if (planIndex >= plans.length || !success) {
       if (value) {
         // TODO: test with enough eth
-        // do theses test in same block
+        // do these tests in same block
         const blockNumber = await this.chainClient.getBlockNumber()
         for (const amountStr of ['1', '2', '3', '4', '5']) {
           const amount = ethers.parseEther(amountStr)
@@ -190,7 +190,7 @@ export class ArbitrageAttacker {
           if ((result.result as any).success) {
             const {index: planIndex, success, returnData} = result.result as any
             const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
-            await getFileLogger().log('plan found with enough eth', amountStr, planIndex, printGwei(amountGain))
+            await getFileLogger().log('plan found with enough eth block:', blockNumber, ' amount:', amountStr, ' plan:', planIndex, printGwei(amountGain))
           }
         }
       }
