@@ -150,7 +150,7 @@ export class ArbitrageAttacker {
     const {index: planIndex, success, returnData} = result.result as any
     if (planIndex >= plans.length || !success) {
       if (value) {
-        // TODO: test with enough eth
+        // test with enough eth
         // do these tests in same block
         const blockNumber = await this.chainClient.getBlockNumber()
         for (const amountStr of ['1', '6', '9', '12', '18', '24']) {
