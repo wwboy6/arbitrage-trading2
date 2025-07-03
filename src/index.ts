@@ -115,7 +115,11 @@ async function main () {
       // TODO: repeat plans if planIndex >= 0
     } catch (e: any) {
       console.error(e)
-      getFileLogger().log('error:', e.message)
+      if (e.message.indexOf('The request took too long to respond') >= 0) {
+        // ignore
+      } else {
+        getFileLogger().log('error:', e.message)
+      }
     }
   })
   while (true) {

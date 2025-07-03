@@ -13,3 +13,6 @@
 2025-07-02_14-58-28 plan found with enough eth block: 52588955  amount: 4  plan: 0 267,997 gwei
 2025-07-02_14-58-28 plan found with enough eth block: 52588955  amount: 5  plan: 0 277,017 gwei
 2025-07-02_23-11-09 plan found with enough eth block: 52628364  amount: 1  plan: 10 63,819gwei
+2025-07-03_14-41-37 plan found with enough eth block: 52702795  amount: 1 128,635gwei WBNB-100-USDT-100-USD1-500-WBNB
+2025-07-03_14-41-37 plan found with enough eth block: 52702795  amount: 6 414,839gwei WBNB-100-USDT-100-USD1-500-WBNB
+2025-07-03_14-41-37 plan found with enough eth block: 52702795  amount: 9 301,016gwei WBNB-100-USDT-100-USD1-500-WBNB

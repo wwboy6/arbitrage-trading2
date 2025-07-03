@@ -48,6 +48,7 @@ export class ArbitrageAttacker {
   tradeCountMax = 6n
   maxGasLimit = this.estimatedGasCostPerTrade * this.tradeCountMax
   public avgerageGasCostRatioPercentage = 150n
+  lastBlockNumber = 0n
 
   // TODO:
   transactionCostReserve: bigint = parseEther('0.001')
@@ -148,48 +149,51 @@ export class ArbitrageAttacker {
     })
     console.timeEnd("callAndReturnAnySuccess")
     const {index: planIndex, success, returnData} = result.result as any
-    if (planIndex >= plans.length || !success) {
+    if ((planIndex >= plans.length || !success) && value) {
       if (value) {
         // test with enough eth
         // do these tests in same block
         const blockNumber = await this.chainClient.getBlockNumber()
-        for (const amountStr of ['1', '6', '9', '12', '18', '24']) {
-          const amount = ethers.parseEther(amountStr)
-          const callDatas = plans.map(plan => {
-            plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
-            plan.swaps = this.constructSwaps(plan)
-            if (plan.routes[0].path[0].address === wbnbAddress) value = this.balance - this.transactionCostReserve
-            return encodeFunctionData({
+        if (blockNumber > this.lastBlockNumber) {
+          this.lastBlockNumber = blockNumber
+          for (const amountStr of ['1', '6', '9', '12', '18', '24']) {
+            const amount = ethers.parseEther(amountStr)
+            const callDatas = plans.map(plan => {
+              plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
+              plan.swaps = this.constructSwaps(plan)
+              if (plan.routes[0].path[0].address === wbnbAddress) value = this.balance - this.transactionCostReserve
+              return encodeFunctionData({
+                abi: universalArbitrageAbi,
+                functionName: 'attack',
+                args: [
+                  plan.routes[0].path[0].address,
+                  amount,
+                  plan.swaps,
+                  profitMin,
+                ]
+              })
+            })
+            const result = await this.chainClient.simulateContract({
+              blockNumber,
+              address: this.universalArbitrageAddress,
               abi: universalArbitrageAbi,
-              functionName: 'attack',
-              args: [
-                plan.routes[0].path[0].address,
-                amount,
-                plan.swaps,
-                profitMin,
+              functionName: 'callAndReturnAnySuccess',
+              args: [callDatas],
+              account: this.account,
+              value: amount,
+              // TODO: use stateOverride to let contract know it is a simulation
+              stateOverride: [
+                {
+                  address: this.account.address,
+                  balance: amount + ethers.parseEther('1') // enough amount to pay value + gas
+                }
               ]
             })
-          })
-          const result = await this.chainClient.simulateContract({
-            blockNumber,
-            address: this.universalArbitrageAddress,
-            abi: universalArbitrageAbi,
-            functionName: 'callAndReturnAnySuccess',
-            args: [callDatas],
-            account: this.account,
-            value: amount,
-            // TODO: use stateOverride to let contract know it is a simulation
-            stateOverride: [
-              {
-                address: this.account.address,
-                balance: amount + ethers.parseEther('1') // enough amount to pay value + gas
-              }
-            ]
-          })
-          if ((result.result as any).success) {
-            const {index: planIndex, success, returnData} = result.result as any
-            const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
-            await getFileLogger().log('plan found with enough eth block:', blockNumber, ' amount:', amountStr, printGwei(amountGain), planToString(plans[planIndex]))
+            if ((result.result as any).success) {
+              const {index: planIndex, success, returnData} = result.result as any
+              const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
+              await getFileLogger().log('plan found with enough eth block:', blockNumber, ' amount:', amountStr, printGwei(amountGain), planToString(plans[planIndex]))
+            }
           }
         }
       }
