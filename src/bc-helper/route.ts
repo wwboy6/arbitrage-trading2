@@ -32,15 +32,24 @@ export type TradeRouteV3 = TradeRouteBase & {
 
 export type TradeRoute = TradeRouteV2 | TradeRouteV3
 
+export function swapProviderToString(index: SwapProviderIndex) {
+  switch (index) {
+    case SwapProviderIndex.PancakeSwap: return 'P'
+    case SwapProviderIndex.Uniswap: return 'U'
+  }
+}
+
 export function tradeRouteToString(route: TradeRoute) {
+  const pdr = swapProviderToString(route.swapProvider)
   switch (route.type) {
-    case PoolType.V2: return `V2(${route.path.map(t => t.symbol).join('-')})`
+    case PoolType.V2: return `${pdr}2(${route.path.map(t => t.symbol).join('-')})`
     case PoolType.V3:
-      let result = route.path[0].symbol
+      let result = `${pdr}3(${route.path[0].symbol}`
       let p: any[] = route.path
       for (let i = 1; i < p.length; i+=2) {
         result += `-${p[i]}-${p[i+1].symbol}`
       }
+      result += `)`
       return result
   }
 }

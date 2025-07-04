@@ -15,6 +15,7 @@ export type ArbitrageAttackerOptions = {
   account: Account,
   universalArbitrageAddress: Hash,
   walletClient: WalletClient,
+  gasPerLoop: bigint,
 }
 
 export type ArbitrageAttackerPlan = {
@@ -39,15 +40,11 @@ export class ArbitrageAttacker {
   universalArbitrageAddress: Hash
   account: Account
   walletClient: WalletClient
+  gasPerLoop: bigint
 
   public balance: bigint = 0n
-  // public maxGasLimit: bigint = 30000000n
-  // TODO: setup config
   public gasPrice: bigint = parseGwei('5')
-  estimatedGasCostPerTrade = 200000n
-  tradeCountMax = 6n
-  maxGasLimit = this.estimatedGasCostPerTrade * this.tradeCountMax
-  public avgerageGasCostRatioPercentage = 150n
+  public profitablePercentage = 110n
   lastBlockNumber = 0n
 
   // TODO:
@@ -58,16 +55,18 @@ export class ArbitrageAttacker {
     this.account = options.account
     this.universalArbitrageAddress = options.universalArbitrageAddress
     this.walletClient = options.walletClient
+    this.gasPerLoop = options.gasPerLoop
   }
 
-  getTargetAmounts(token: Token) {
-    // TODO: config different amount scales for different swapFrom
+  getTargetAmounts(plan: ArbitrageAttackerPlan) {
+    // TODO: config different amount scales for different pools
     return [
-      parseEther('5'),
-      parseEther('20'),
-      parseEther('80'),
-      parseEther('320'),
-      parseEther('1280'),
+      parseEther('6'),
+      // parseEther('5'),
+      // parseEther('20'),
+      // parseEther('80'),
+      // parseEther('320'),
+      // parseEther('1280'),
     ]
   }
 
@@ -119,12 +118,12 @@ export class ArbitrageAttacker {
     //   account: this.account,
     // })
     const originalBalance = this.balance
-    const profitMin = this.estimatedGasCostPerTrade * this.gasPrice * this.avgerageGasCostRatioPercentage / 100n
+    const profitMin = this.gasPerLoop * this.gasPrice * this.profitablePercentage / 100n
     console.log('profitMin', ethers.formatUnits(profitMin, 'gwei'))
     let value = 0n
     const callDatas = plans.map(plan => {
-      plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
-      plan.swaps = this.constructSwaps(plan)
+      if (!plan.targetAmounts) plan.targetAmounts = this.getTargetAmounts(plan)
+      if (!plan.swaps) plan.swaps = this.constructSwaps(plan)
       if (plan.routes[0].path[0].address === wbnbAddress) value = this.balance - this.transactionCostReserve
       return encodeFunctionData({
         abi: universalArbitrageAbi,
@@ -150,6 +149,7 @@ export class ArbitrageAttacker {
     console.timeEnd("callAndReturnAnySuccess")
     const {index: planIndex, success, returnData} = result.result as any
     if ((planIndex >= plans.length || !success) && value) {
+      /*
       if (value) {
         // test with enough eth
         // do these tests in same block
@@ -159,7 +159,7 @@ export class ArbitrageAttacker {
           for (const amountStr of ['1', '6', '9', '12', '18', '24']) {
             const amount = ethers.parseEther(amountStr)
             const callDatas = plans.map(plan => {
-              plan.targetAmounts = this.getTargetAmounts(plan.routes[0].path[0])
+              plan.targetAmounts = this.getTargetAmounts(plan)
               plan.swaps = this.constructSwaps(plan)
               if (plan.routes[0].path[0].address === wbnbAddress) value = this.balance - this.transactionCostReserve
               return encodeFunctionData({
@@ -197,63 +197,80 @@ export class ArbitrageAttacker {
           }
         }
       }
+        */
       return -1
     }
     console.log('plan found', planToString(plans[planIndex]))
     const amountGain = AbiCoder.defaultAbiCoder().decode(['uint256'], returnData)[0]
     console.log('amountGain', printGwei(amountGain))
+    // TODO: update amounts to estimated OIA w.r.t. amount gain
     const plan = plans[planIndex]
     getFileLogger().log('plan found', planIndex, printGwei(amountGain), planToString(plan))
     let hasSuccessfulAttack = false
     const swapFrom = plan.routes[0].path[0]
-    const maxPriorityFeePerGas = this.gasPrice // double the gas price
-    const transactionCostReserve = this.maxGasLimit * (maxPriorityFeePerGas + this.gasPrice)
-    value = swapFrom.address === bscTokens.wbnb.address ? this.balance - transactionCostReserve : 0n
-    // TODO: keep attack until it fails
-    // while(true) {
-      try {
-        // call attackWithAmounts without other rpc call
-        // TODO: adjust maxPriorityFeePerGas
-        const hash = await this.walletClient.writeContract({
-          address: this.universalArbitrageAddress,
-          abi: universalArbitrageAbi,
-          functionName: 'attackWithAmounts',
-          args: [
-            swapFrom.address,
-            plan.targetAmounts,
-            plan.swaps,
-            profitMin,
-          ],
-          value,
-          gas: this.maxGasLimit,
-          maxPriorityFeePerGas,
-          maxFeePerGas: this.gasPrice + maxPriorityFeePerGas,
-        } as any)
-        hasSuccessfulAttack = true
-        const reportPromise = this.reportAttack(hash)
-        console.log('attack success')
-        this.balance = await this.chainClient.getBalance(this.account)
-        console.log('balance', this.balance)
-        reportPromise.then(() => {
-          getFileLogger().log('balance', this.balance, this.balance - originalBalance)
-        })
-      } catch (e: any) {
-        // TODO: check error
-        console.log(e.message)
-        console.log('attack failed')
-        // TODO: use another client with less retry and delay
-        this.balance = await this.chainClient.getBalance(this.account)
-        getFileLogger().log('attack failed')
-          .then(() => getFileLogger().log('balance', this.balance, this.balance - originalBalance))
-        // TODO: cancel transection
-        // break
-      }
-    // }
+    // TODO: strategy for piority fee
+    // const maxPriorityFeePerGas = this.gasPrice // double the gas price
+    // const transactionCostReserve = this.maxGasLimit * (maxPriorityFeePerGas + this.gasPrice)
+    const amountCount = BigInt(plan.targetAmounts!.length)
+    const maxGasLimit = this.gasPerLoop * amountCount
+    const maxFeePerGasLimit = this.balance / maxGasLimit
+    console.log('maxFeePerGasLimit', printGwei(maxFeePerGasLimit))
+    getFileLogger().log('maxFeePerGasLimit', printGwei(maxFeePerGasLimit))
+    // if there are more than 1 amounts, the second loop must run after the first one success
+    const minLoop = amountCount > 1n ? 2n : 1n
+    const profitableFeePerGas = amountGain * 9n / 10n / minLoop / this.gasPerLoop
+    console.log('profitableFeePerGas', printGwei(profitableFeePerGas))
+    getFileLogger().log('profitableFeePerGas', printGwei(profitableFeePerGas))
+    const maxFeePerGas = profitableFeePerGas > maxFeePerGasLimit ? maxFeePerGasLimit : profitableFeePerGas
+    console.log('maxFeePerGas', printGwei(maxFeePerGas))
+    getFileLogger().log('maxFeePerGas', printGwei(maxFeePerGas))
+    const maxPriorityFeePerGas = maxFeePerGas - this.gasPrice
+    value = swapFrom.address === bscTokens.wbnb.address ? this.balance - maxGasLimit * maxFeePerGas : 0n
+    console.log('value', printGwei(value))
+    getFileLogger().log('value', printGwei(value))
+    try {
+      // call attackWithAmounts without other rpc call
+      // TODO: adjust maxPriorityFeePerGas
+      const hash = await this.walletClient.writeContract({
+        address: this.universalArbitrageAddress,
+        abi: universalArbitrageAbi,
+        functionName: 'attackWithAmounts',
+        args: [
+          swapFrom.address,
+          plan.targetAmounts,
+          plan.swaps,
+          profitMin,
+        ],
+        value,
+        gas: maxGasLimit,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+      } as any)
+      hasSuccessfulAttack = true
+      const reportPromise = this.reportAttack(hash)
+      console.log('attack finish')
+      this.balance = await this.chainClient.getBalance(this.account)
+      console.log('balance', this.balance)
+      reportPromise.then(() => {
+        getFileLogger().log('balance', this.balance, this.balance - originalBalance)
+      })
+    } catch (e: any) {
+      // TODO: check error
+      console.log(e.message)
+      console.log('attack failed')
+      // TODO: use another client with less retry and delay
+      this.balance = await this.chainClient.getBalance(this.account)
+      getFileLogger().log('attack failed')
+        .then(() => getFileLogger().log('balance', this.balance, this.balance - originalBalance))
+      // TODO: cancel transection
+      // break
+    }
     return hasSuccessfulAttack ? planIndex : -1
   }
 
   async reportAttack(hash: Hash) {
     console.log(hash)
+    getFileLogger().log('hash', hash)
     // Get transaction receipt
     const receipt = await this.chainClient.waitForTransactionReceipt({ hash })
 
@@ -273,7 +290,6 @@ export class ArbitrageAttacker {
     const totalGasCost = gasUsed * effectiveGasPrice
     console.log('totalGasCost', totalGasCost)
 
-    await getFileLogger().log('hash', hash)
     await getFileLogger().log('priorityFeePerGas', priorityFeePerGas)
     await getFileLogger().log('totalGasCost', totalGasCost)
   }

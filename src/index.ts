@@ -16,7 +16,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { getFileLogger, setupFileLogger } from './lib/file-logger'
 import ExpiryMap from 'expiry-map'
 
-const { NODE_ENV, PROXY_URL, PRIVATE_KEY, ZAN_API_KEY, ARBITRAGE_CONTRACT_ADDRESS, PLAN_MAX, INTERVAL, PROFIT_THRESHOLD } = env
+const { NODE_ENV, PROXY_URL, PRIVATE_KEY, ZAN_API_KEY, ARBITRAGE_CONTRACT_ADDRESS, PLAN_MAX, INTERVAL, GAS_PER_LOOP } = env
 
 setupFileLogger('./data/log.txt')
 
@@ -70,6 +70,7 @@ function setup () {
     account,
     universalArbitrageAddress: ARBITRAGE_CONTRACT_ADDRESS,
     walletClient,
+    gasPerLoop: GAS_PER_LOOP,
   })
   const attackPlanner = new AttackPlanner({
     wssChainClient,

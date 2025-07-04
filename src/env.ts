@@ -12,6 +12,6 @@ const envSchema = z.object({
   ARBITRAGE_CONTRACT_ADDRESS: z.string().startsWith('0x').transform<Hash>((s: any) => s),
   PLAN_MAX: z.string().transform(s => Number(s)),
   INTERVAL: z.string().transform(s => Number(s)),
-  PROFIT_THRESHOLD: z.string().transform(s => Number(s)),
+  GAS_PER_LOOP: z.string().transform(s => BigInt(s.replace(/_/g, ''))),
 })
 export default envSchema.parse(process.env)
