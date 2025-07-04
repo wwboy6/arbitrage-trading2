@@ -16,3 +16,14 @@
 2025-07-03_14-41-37 plan found with enough eth block: 52702795  amount: 1 128,635gwei WBNB-100-USDT-100-USD1-500-WBNB
 2025-07-03_14-41-37 plan found with enough eth block: 52702795  amount: 6 414,839gwei WBNB-100-USDT-100-USD1-500-WBNB
 2025-07-03_14-41-37 plan found with enough eth block: 52702795  amount: 9 301,016gwei WBNB-100-USDT-100-USD1-500-WBNB
+2025-07-04_05-14-41 plan found 0 4,209,436gwei WBNB-100-USDT-500-WBNB
+2025-07-04_05-14-45 plan found with enough eth block: 52772637  amount: 1 1,370,638gwei WBNB-100-USDT-500-WBNB
+2025-07-04_05-14-46 plan found with enough eth block: 52772637  amount: 6 8,000,289gwei WBNB-100-USDT-500-WBNB
+2025-07-04_05-14-46 hash 0x3dc4287f411f709e537923ee1aa077076dae3077837273bfb5f5096c22d037e0
+2025-07-04_05-14-46 priorityFeePerGas 100000000
+2025-07-04_05-14-46 totalGasCost 59465200000000
+2025-07-04_05-14-46 balance 11545121160000000 0
+2025-07-04_05-14-47 plan found with enough eth block: 52772637  amount: 9 11,799,258gwei WBNB-100-USDT-500-WBNB
+2025-07-04_05-14-48 plan found with enough eth block: 52772637  amount: 12 15,464,120gwei WBNB-100-USDT-500-WBNB
+2025-07-04_05-14-49 plan found with enough eth block: 52772637  amount: 18 22,391,562gwei WBNB-100-USDT-500-WBNB
+2025-07-04_05-14-50 plan found with enough eth block: 52772637  amount: 24 28,782,686gwei WBNB-100-USDT-500-WBNB
