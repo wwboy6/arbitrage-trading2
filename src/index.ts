@@ -116,7 +116,11 @@ async function main () {
       // TODO: repeat plans if planIndex >= 0
     } catch (e: any) {
       console.error(e)
-      if (e.message.indexOf('The request took too long to respond') >= 0) {
+      if (
+        e.message.indexOf('The request took too long to respond') >= 0 ||
+        e.message.indexOf('HTTP request failed') >= 0 ||
+        e.message.indexOf('fetch failed') >= 0
+      ) {
         // ignore
       } else {
         getFileLogger().log('error:', e.message)

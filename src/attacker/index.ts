@@ -148,7 +148,7 @@ export class ArbitrageAttacker {
     })
     console.timeEnd("callAndReturnAnySuccess")
     const {index: planIndex, success, returnData} = result.result as any
-    if ((planIndex >= plans.length || !success) && value) {
+    if (planIndex >= plans.length || !success) {
       /*
       if (value) {
         // test with enough eth

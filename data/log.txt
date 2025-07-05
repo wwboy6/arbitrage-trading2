@@ -27,3 +27,12 @@
 2025-07-04_05-14-48 plan found with enough eth block: 52772637  amount: 12 15,464,120gwei WBNB-100-USDT-500-WBNB
 2025-07-04_05-14-49 plan found with enough eth block: 52772637  amount: 18 22,391,562gwei WBNB-100-USDT-500-WBNB
 2025-07-04_05-14-50 plan found with enough eth block: 52772637  amount: 24 28,782,686gwei WBNB-100-USDT-500-WBNB
+2025-07-05_02-31-42 plan found 1 30,575,847gwei P3(WBNB-500-USDT-100-WBNB)
+2025-07-05_02-31-42 maxFeePerGasLimit 1gwei
+2025-07-05_02-31-42 profitableFeePerGas 4gwei
+2025-07-05_02-31-42 maxFeePerGas 1gwei
+2025-07-05_02-31-42 value 0gwei
+2025-07-05_02-31-42 hash 0xe37131251972b5b46c52eb8474902be54711bac50233d0078be4e6963db6a646
+2025-07-05_02-31-47 priorityFeePerGas 1814275993
+2025-07-05_02-31-47 totalGasCost 835998420538477
+2025-07-05_02-31-47 balance 11485655960000000 0
