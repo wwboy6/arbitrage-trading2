@@ -6,6 +6,7 @@ import { ProxyAgent, setGlobalDispatcher } from 'undici';
 import { bsc } from 'viem/chains';
 import { throttledHttp } from './bc-helper/throttled-http';
 import { LogType, SwapEventListener } from './bc-helper/event-watcher';
+import dayjs from 'dayjs';
 
 const { ZAN_API_KEY, PROXY_URL } = env
 
@@ -32,6 +33,11 @@ async function main() {
       interval: 1000
     }
   )
+  // check if message is recent
+  const referenceBlockNumber = 53140810n
+  const referenceBlockTimestamp = 1751853424000
+  const blockTime = 750
+  //
   const eventListener = new SwapEventListener({
     chainClientFactory: (isHttp: boolean): PublicClient => {
       if (isHttp) return createPublicClient({
@@ -53,8 +59,12 @@ async function main() {
       logs.forEach((log) => {
         const { logIndex, transactionIndex, blockNumber } = log
         const { amount0, amount1, tick } = log.args;
-        console.warn(`Swap Event on Pool ${poolAddresses[0]}:`, blockNumber, logIndex, tick, formatEther(amount0!), formatEther(amount1!))
+        const timestamp = dayjs().format("YYYY-MM-DD_HH-mm-ss")
+        const estTimestamp = Number((blockNumber - referenceBlockNumber).toString()) * blockTime + referenceBlockTimestamp
+        const timeDiff = new Date().getTime() - estTimestamp
+        console.log(`Swap`, timestamp,  timeDiff, blockNumber, logIndex, tick, formatEther(amount0!), formatEther(amount1!))
       })
+      console.log(`----`)
     }
   })
 

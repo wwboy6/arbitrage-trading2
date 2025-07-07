@@ -62,11 +62,10 @@ export class ArbitrageAttacker {
     // TODO: config different amount scales for different pools
     return [
       parseEther('6'),
-      // parseEther('5'),
-      // parseEther('20'),
-      // parseEther('80'),
-      // parseEther('320'),
-      // parseEther('1280'),
+      parseEther('24'),
+      parseEther('96'),
+      parseEther('384'),
+      parseEther('1536'),
     ]
   }
 
