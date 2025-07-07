@@ -25,6 +25,6 @@ This is part 3 of a demo for arbitrage trading. This part is trying to test if a
 As this project is still in progress, BNB main chain block time is updated to 0.75 seconds, which make this arbitrage strategy impractical. The time required for write contract call simulation is too long for making attack before next block is evaluated.
 
 Two attacks was performed but it is way too late to get the profitable trading (See log.txt). A study of failure is added in part 1.
-https://github.com/wwboy6/hardhatdemo.git
+https://github.com/wwboy6/hardhatdemo
 
 Event message subscription would get latest information of trading swap, which could be a possible way to detect profitable attack. Study about event message is stated in test-watch-event.ts.
