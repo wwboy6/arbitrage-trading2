@@ -10,6 +10,7 @@ This is part 3 of a demo for arbitrage trading. This part is trying to test if a
     - [Viem] PublicClient.simulateContract: Simulate a write contract call and return value data.
     - [Solidity] CallAndReturnAnySuccess.callAndReturnAnySuccess: Sequentially call a list of functions (attack) and return if any one of them is successful.
     - [Solidity] UniversalArbitrage.attack: Perform arbitrage attack. Return profit on success and revert on fail.
+    - [Uniswap] UniversalRouter.execute: Execute trading by command and path, that support different version of trading pools.
 - Update piority fee w.r.t. estimated profit and account balance
 - Perform attack with multiple amount values in one tracsaction
   - [node.js] ArbitrageAttacker.getTargetAmounts: Determine amount values to be used.
@@ -23,6 +24,7 @@ This is part 3 of a demo for arbitrage trading. This part is trying to test if a
 
 As this project is still in progress, BNB main chain block time is updated to 0.75 seconds, which make this arbitrage strategy impractical. The time required for write contract call simulation is too long for making attack before next block is evaluated.
 
-Two attacks was performed but it is way too late to get the profitable trading. (See log.txt for detail)
+Two attacks was performed but it is way too late to get the profitable trading (See log.txt). A study of failure is added in part 1.
+https://github.com/wwboy6/hardhatdemo.git
 
 Event message subscription would get latest information of trading swap, which could be a possible way to detect profitable attack. Study about event message is stated in test-watch-event.ts.
