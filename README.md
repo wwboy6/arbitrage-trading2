@@ -10,7 +10,7 @@ This is part 3 of a demo for arbitrage trading. This part is trying to test if a
     - [Viem] PublicClient.simulateContract: Simulate a write contract call and return value data.
     - [Solidity] CallAndReturnAnySuccess.callAndReturnAnySuccess: Sequentially call a list of functions (attack) and return if any one of them is successful.
     - [Solidity] UniversalArbitrage.attack: Perform arbitrage attack. Return profit on success and revert on fail.
-    - [Uniswap] UniversalRouter.execute: Execute trading by command and path, that support different version of trading pools.
+    - [Uniswap] UniversalRouter.execute: Execute trading by command and path, that support different version of trading pools. Uniswap or Pancakeswap can be selected in route defined for attack.
 - Update piority fee w.r.t. estimated profit and account balance
 - Perform attack with multiple amount values in one tracsaction
   - [node.js] ArbitrageAttacker.getTargetAmounts: Determine amount values to be used.
